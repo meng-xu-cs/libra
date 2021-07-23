@@ -366,6 +366,11 @@ impl ModuleCache {
         Ok(res)
     }
 
+    // Given a module id, returns whether the module cache has the module or not
+    fn has_module(&self, module_id: &ModuleId) -> bool {
+        self.modules.id_map.contains_key(module_id)
+    }
+
     // Given a ModuleId::struct_name, retrieve the `StructType` and the index associated.
     // Return and error if the type has not been loaded
     fn resolve_struct_by_name(
@@ -715,6 +720,12 @@ impl Loader {
                 data_store,
             )?
         };
+
+        // shortcut the linking check if the target module has already been loaded while verifying
+        // its dependencies
+        if self.module_cache.read().has_module(&module.self_id()) {
+            return Ok(());
+        }
         let all_imm_deps = loaded_imm_deps
             .iter()
             .map(|module| module.module())
@@ -904,22 +915,34 @@ impl Loader {
         // load and check dependencies
         self.verify_module_expect_no_missing_dependencies(&module, in_progress, data_store)?;
 
-        // put the module into code cache
-        let module_ref = self
-            .module_cache
-            .write()
-            .insert(&self.natives, id.clone(), module)?;
+        // shortcut the cyclic dependency and friend check if the target module has already been
+        // loaded into the code cache while verifying its dependencies
+        let module_ref = match self.module_cache.read().module_at(id) {
+            None => {
+                // put the module into code cache
+                let module_ref =
+                    self.module_cache
+                        .write()
+                        .insert(&self.natives, id.clone(), module)?;
 
-        // friendship is an upward edge in the dependencies DAG, so it has to be checked after the
-        // module is put into cache, otherwise it is a chicken-and-egg problem.
-        let friends = module_ref.module().immediate_friends();
-        self.load_dependencies_expect_no_missing_dependencies(friends, in_progress, data_store)?;
-        self.verify_module_cyclic_relations(
-            module_ref.module(),
-            &BTreeMap::new(),
-            &BTreeSet::new(),
-        )?;
+                // friendship is an upward edge in the dependencies DAG, so it has to be checked after the
+                // module is put into cache, otherwise it is a chicken-and-egg problem.
+                let friends = module_ref.module().immediate_friends();
+                self.load_dependencies_expect_no_missing_dependencies(
+                    friends,
+                    in_progress,
+                    data_store,
+                )?;
+                self.verify_module_cyclic_relations(
+                    module_ref.module(),
+                    &BTreeMap::new(),
+                    &BTreeSet::new(),
+                )?;
 
+                module_ref
+            }
+            Some(cached) => cached,
+        };
         Ok(module_ref)
     }
 
