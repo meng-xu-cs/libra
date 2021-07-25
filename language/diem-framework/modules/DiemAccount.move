@@ -2331,9 +2331,9 @@ module DiemFramework::DiemAccount {
         invariant forall addr: address:
             exists<VASPDomain::VASPDomainManager>(addr) <==> Roles::spec_has_treasury_compliance_role_addr(addr);
 
-        /// There is a VASPDomains at an address iff the address is a Diem treasury compliance account
+        /// There is a VASPDomains at an address iff the address is a Parent VASP account
         invariant forall addr: address:
-            exists<VASPDomain::VASPDomains>(addr) <==> Roles::spec_has_treasury_compliance_role_addr(addr);
+            exists<VASPDomain::VASPDomains>(addr) <==> Roles::spec_has_parent_VASP_role_addr(addr);
 
         /// Account has a balance only iff it is parent or child VASP or a designated dealer
         /// > Note: It would be better to make this generic over all existing and future coins, but that
