@@ -32,6 +32,7 @@ pub mod mutation_tester;
 pub mod options;
 pub mod packed_types_analysis;
 pub mod pipeline_factory;
+pub mod prop_monomorphization;
 pub mod reaching_def_analysis;
 pub mod read_write_set_analysis;
 pub mod spec_instrumentation;

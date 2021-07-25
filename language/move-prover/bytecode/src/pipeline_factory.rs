@@ -17,6 +17,7 @@ use crate::{
     mut_ref_instrumentation::MutRefInstrumenter,
     mutation_tester::MutationTester,
     options::ProverOptions,
+    prop_monomorphization::PropMonomorphization,
     reaching_def_analysis::ReachingDefProcessor,
     spec_instrumentation::SpecInstrumentationProcessor,
     usage_analysis::UsageProcessor,
@@ -56,6 +57,7 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         processors.insert(0, MutationTester::new()); // pass which may do nothing
     }
     if options.run_mono {
+        processors.push(PropMonomorphization::new());
         processors.push(MonoAnalysisProcessor::new());
     }
 
