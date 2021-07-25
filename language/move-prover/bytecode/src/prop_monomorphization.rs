@@ -113,15 +113,12 @@ impl MonoRewriter {
                 }
 
                 // skip mono if this is not a universal quantifier
+                // TODO (mengxu) this check is neither complete nor sound, need to revisit
+                // this when the generic invariant support is ready, i.e., invariant<T, ...>
                 match kind {
                     QuantKind::Forall => (),
                     QuantKind::Exists => {
-                        // TODO (mengxu) this check is neither complete nor sound, need to revisit
-                        // this when the generic invariant support is ready, i.e., invariant<T, ...>
-                        env.error(
-                            &env.get_node_loc(*node_id),
-                            "Existential type quantifiers cannot be locally eliminated",
-                        );
+                        // existential type quantifiers cannot be locally monomorphized
                         return Err(e);
                     }
                     QuantKind::Choose | QuantKind::ChooseMin => {
