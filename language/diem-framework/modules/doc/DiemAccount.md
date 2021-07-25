@@ -5002,11 +5002,11 @@ There is a VASPDomainManager at an address iff the address is a diem treasury co
 </code></pre>
 
 
-There is a VASPDomains at an address iff the address is a Diem treasury compliance account
+There is a VASPDomains at an address iff the address is a Parent VASP account
 
 
 <pre><code><b>invariant</b> <b>forall</b> addr: address:
-    <b>exists</b>&lt;<a href="VASPDomain.md#0x1_VASPDomain_VASPDomains">VASPDomain::VASPDomains</a>&gt;(addr) &lt;==&gt; <a href="Roles.md#0x1_Roles_spec_has_treasury_compliance_role_addr">Roles::spec_has_treasury_compliance_role_addr</a>(addr);
+    <b>exists</b>&lt;<a href="VASPDomain.md#0x1_VASPDomain_VASPDomains">VASPDomain::VASPDomains</a>&gt;(addr) &lt;==&gt; <a href="Roles.md#0x1_Roles_spec_has_parent_VASP_role_addr">Roles::spec_has_parent_VASP_role_addr</a>(addr);
 </code></pre>
 
 
