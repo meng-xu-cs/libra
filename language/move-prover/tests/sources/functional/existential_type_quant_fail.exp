@@ -1,0 +1,64 @@
+Move prover returns: exiting with boogie verification errors
+error: global memory invariant does not hold
+
+    ┌── tests/sources/functional/existential_type_quant_fail.move:27:5 ───
+    │
+ 27 │ ╭     invariant
+ 28 │ │         exists t: type:
+ 29 │ │             exists<S<t>>(@0x22) ==> global<S<t>>(@0x22).v == 0;
+    │ ╰───────────────────────────────────────────────────────────────^
+    │
+    =     at tests/sources/functional/existential_type_quant_fail.move:22: publish_u64
+    =         addr = <redacted>
+    =         x = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:23: publish_u64
+    =     at tests/sources/functional/existential_type_quant_fail.move:27
+
+error: global memory invariant does not hold
+
+    ┌── tests/sources/functional/existential_type_quant_fail.move:32:5 ───
+    │
+ 32 │ ╭     invariant
+ 33 │ │         exists t: type:
+ 34 │ │             exists<S<t>>(@0x23) ==> global<S<t>>(@0x23).v == 1;
+    │ ╰───────────────────────────────────────────────────────────────^
+    │
+    =     at tests/sources/functional/existential_type_quant_fail.move:18: publish_x
+    =         addr = <redacted>
+    =         x = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:19: publish_x
+    =     at tests/sources/functional/existential_type_quant_fail.move:27
+    =     at tests/sources/functional/existential_type_quant_fail.move:32
+
+error: global memory invariant does not hold
+
+    ┌── tests/sources/functional/existential_type_quant_fail.move:27:5 ───
+    │
+ 27 │ ╭     invariant
+ 28 │ │         exists t: type:
+ 29 │ │             exists<S<t>>(@0x22) ==> global<S<t>>(@0x22).v == 0;
+    │ ╰───────────────────────────────────────────────────────────────^
+    │
+    =     at tests/sources/functional/existential_type_quant_fail.move:13: set_u64
+    =         addr = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:14: set_u64
+    =         r = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:15: set_u64
+    =     at tests/sources/functional/existential_type_quant_fail.move:27
+
+error: global memory invariant does not hold
+
+    ┌── tests/sources/functional/existential_type_quant_fail.move:32:5 ───
+    │
+ 32 │ ╭     invariant
+ 33 │ │         exists t: type:
+ 34 │ │             exists<S<t>>(@0x23) ==> global<S<t>>(@0x23).v == 1;
+    │ ╰───────────────────────────────────────────────────────────────^
+    │
+    =     at tests/sources/functional/existential_type_quant_fail.move:8: set_x
+    =         addr = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:9: set_x
+    =         r = <redacted>
+    =     at tests/sources/functional/existential_type_quant_fail.move:10: set_x
+    =     at tests/sources/functional/existential_type_quant_fail.move:27
+    =     at tests/sources/functional/existential_type_quant_fail.move:32
