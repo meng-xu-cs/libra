@@ -18,3 +18,11 @@ error: there is an inconsistent assumption in the function, which may allow any 
 19 │ │         }
 20 │ │     }
    │ ╰─────^
+
+error: there is an inconsistent assumption in the function, which may allow any post-condition (including false) to be proven
+   ┌─ tests/sources/functional/inconsistency_always_abort.move:34:5
+   │
+34 │ ╭     fun call_always_abort_opaque() {
+35 │ │         always_abort_opaque()
+36 │ │     }
+   │ ╰─────^

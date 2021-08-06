@@ -32,6 +32,7 @@ module 0x42::Inconsistency {
     spec inconsistent_opaque {
         pragma verify=false;
         pragma opaque;
+        aborts_if false;
         ensures false;
     }
 

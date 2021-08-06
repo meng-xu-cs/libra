@@ -21,4 +21,20 @@ module 0x42::Inconsistency {
     spec always_abort_if_else {
         ensures result == false;
     }
+
+    // Calling an opaque function that unconditionally abort is also an
+    // inconsistency
+    fun always_abort_opaque() {}
+    spec always_abort_opaque {
+        pragma verify = false;
+        pragma opaque;
+        aborts_if true;
+    }
+
+    fun call_always_abort_opaque() {
+        always_abort_opaque()
+    }
+    spec call_always_abort_opaque {
+        ensures 1 == 2;
+    }
 }

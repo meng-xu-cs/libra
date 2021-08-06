@@ -26,7 +26,7 @@ use crate::{
         FunctionTargetProcessor, FunctionTargetsHolder, FunctionVariant, VerificationFlavor,
     },
     options::ProverOptions,
-    stackless_bytecode::{Bytecode, PropKind},
+    stackless_bytecode::{Bytecode, Operation, PropKind},
 };
 
 use move_model::{exp_generator::ExpGenerator, model::FunctionEnv};
@@ -75,6 +75,7 @@ impl FunctionTargetProcessor for InconsistencyCheckInstrumenter {
         let old_code = std::mem::take(&mut builder.data.code);
         for bc in old_code {
             if matches!(bc, Bytecode::Ret(..))
+                || matches!(bc, Bytecode::Call(_, _, Operation::Stop, _, _))
                 || (matches!(bc, Bytecode::Abort(..))
                     && !options.unconditional_abort_as_inconsistency)
             {

@@ -9,3 +9,11 @@ error: there is an inconsistent assumption in the function, which may allow any 
 21 │ │         dec(x)
 22 │ │     }
    │ ╰─────^
+
+error: there is an inconsistent assumption in the function, which may allow any post-condition (including false) to be proven
+   ┌─ tests/sources/functional/inconsistency.move:41:5
+   │
+41 │ ╭     fun call_inconsistent_opaque() {
+42 │ │         inconsistent_opaque();
+43 │ │     }
+   │ ╰─────^
