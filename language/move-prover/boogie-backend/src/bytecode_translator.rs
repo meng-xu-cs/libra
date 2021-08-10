@@ -1455,7 +1455,15 @@ impl<'env> FunctionTranslator<'env> {
                 emitln!(writer, "$abort_flag := true;");
                 emitln!(writer, "return;")
             }
-            Nop(..) => {}
+            Nop(id) => {
+                if let Some(msg) = fun_target.get_vc_info(*id) {
+                    emitln!(
+                        self.parent.writer,
+                        "assume {{:print \"$msg({})\"}} true;",
+                        msg,
+                    );
+                }
+            }
         }
         emitln!(writer);
     }
