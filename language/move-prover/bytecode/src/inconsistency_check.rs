@@ -26,14 +26,10 @@ use crate::{
         FunctionTargetProcessor, FunctionTargetsHolder, FunctionVariant, InconsistencyCanary,
         VerificationFlavor,
     },
-    stackless_bytecode::{Bytecode, Constant, PropKind},
+    stackless_bytecode::{Bytecode, PropKind},
 };
 
-use move_model::{
-    exp_generator::ExpGenerator,
-    model::FunctionEnv,
-    ty::{PrimitiveType, Type},
-};
+use move_model::{exp_generator::ExpGenerator, model::FunctionEnv};
 
 // This message is for the boogie wrapper, and not shown to the users.
 pub const EXPECTED_TO_FAIL: &str = "expected to fail";
@@ -66,15 +62,24 @@ impl FunctionTargetProcessor for InconsistencyCheckInstrumenter {
             FunctionVariant::Verification(flavor) => flavor.clone(),
         };
 
-        // fork and instrumentation
-        let new_data = Self::instrument_always_abort_check(fun_env, &data, flavor.clone());
-        targets.insert_target_data(
-            &fun_env.get_qualified_id(),
-            new_data.variant.clone(),
-            new_data,
-        );
+        // create a clone of the data for inconsistency check
+        let new_data = data.fork(FunctionVariant::Verification(
+            VerificationFlavor::Inconsistency(InconsistencyCanary::AssertFalse, Box::new(flavor)),
+        ));
 
-        let new_data = Self::instrument_assert_false_check(fun_env, &data, flavor);
+        // instrument an `assert false` before the return
+        let mut builder = FunctionDataBuilder::new(fun_env, new_data);
+        let old_code = std::mem::take(&mut builder.data.code);
+        for bc in old_code {
+            if matches!(bc, Bytecode::Ret(..)) {
+                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
+                let exp_false = builder.mk_bool_const(false);
+                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_false));
+            }
+            builder.emit(bc);
+        }
+
+        let new_data = builder.data;
         targets.insert_target_data(
             &fun_env.get_qualified_id(),
             new_data.variant.clone(),
@@ -87,172 +92,5 @@ impl FunctionTargetProcessor for InconsistencyCheckInstrumenter {
 
     fn name(&self) -> String {
         "inconsistency_check_instrumenter".to_string()
-    }
-}
-
-impl InconsistencyCheckInstrumenter {
-    fn instrument_always_abort_check(
-        fun_env: &FunctionEnv,
-        data: &FunctionData,
-        flavor: VerificationFlavor,
-    ) -> FunctionData {
-        // create a clone of the data for inconsistency check
-        let new_data = data.fork(FunctionVariant::Verification(
-            VerificationFlavor::Inconsistency(InconsistencyCanary::AlwaysAbort, Box::new(flavor)),
-        ));
-
-        // instrumentation
-        let mut builder = FunctionDataBuilder::new(fun_env, new_data);
-        let var_aborted = builder.new_temp(Type::new_prim(PrimitiveType::Bool));
-
-        // locate and instrument the abort instruction, there should be at most one per function
-        let mut return_label_opt = None;
-        let old_code = std::mem::take(&mut builder.data.code);
-        for bc in old_code {
-            if matches!(bc, Bytecode::Ret(..)) {
-                if return_label_opt.is_some() {
-                    panic!("Expect at most one return instruction in a well-formed function");
-                }
-
-                // mark that the function does not abort on this path
-                builder.emit_with(|id| Bytecode::Load(id, var_aborted, Constant::Bool(false)));
-
-                // create a label where the path from the return side can jump to
-                let label = builder.new_label();
-                builder.emit_with(|id| Bytecode::Label(id, label));
-                return_label_opt = Some(label);
-
-                // try to assert that this function must abort, expects failure in general, but if
-                // this is proved, we know that this function will abort unconditionally.
-                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
-                let exp_aborted = builder.mk_temporary(var_aborted);
-                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_aborted));
-            }
-            builder.emit(bc);
-        }
-
-        let old_code = std::mem::take(&mut builder.data.code);
-        match return_label_opt {
-            None => {
-                // this function can never return (i.e., the function always aborts), simply replace
-                // the function body with an `assert true` which is guaranteed to verify.
-                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
-                let exp_true = builder.mk_bool_const(true);
-                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_true));
-            }
-            Some(label) => {
-                // locate and instrument the abort instructions
-                for bc in old_code {
-                    if matches!(bc, Bytecode::Abort(..)) {
-                        // mark that the function aborts on this path
-                        builder
-                            .emit_with(|id| Bytecode::Load(id, var_aborted, Constant::Bool(true)));
-
-                        // join this return path to the abort path
-                        builder.emit_with(|id| Bytecode::Jump(id, label));
-                    } else {
-                        builder.emit(bc);
-                    }
-                }
-            }
-        }
-
-        builder.data
-    }
-
-    fn instrument_always_abort_check_2(
-        fun_env: &FunctionEnv,
-        data: &FunctionData,
-        flavor: VerificationFlavor,
-    ) -> FunctionData {
-        // create a clone of the data for inconsistency check
-        let new_data = data.fork(FunctionVariant::Verification(
-            VerificationFlavor::Inconsistency(InconsistencyCanary::AlwaysAbort, Box::new(flavor)),
-        ));
-
-        // instrumentation
-        let mut builder = FunctionDataBuilder::new(fun_env, new_data);
-        let var_aborted = builder.new_temp(Type::new_prim(PrimitiveType::Bool));
-
-        // locate and instrument the abort instruction, there should be at most one per function
-        let mut abort_label_opt = None;
-        let old_code = std::mem::take(&mut builder.data.code);
-        for bc in old_code {
-            if matches!(bc, Bytecode::Abort(..)) {
-                if abort_label_opt.is_some() {
-                    panic!("Expect at most one abort instruction in a well-formed function");
-                }
-
-                // mark that the function aborted on this path
-                builder.emit_with(|id| Bytecode::Load(id, var_aborted, Constant::Bool(true)));
-
-                // create a label where the path from the return side can jump to
-                let label = builder.new_label();
-                builder.emit_with(|id| Bytecode::Label(id, label));
-                abort_label_opt = Some(label);
-
-                // try to assert that this function must abort, expects failure in general, but if
-                // this is proved, we know that this function will abort unconditionally.
-                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
-                let exp_aborted = builder.mk_temporary(var_aborted);
-                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_aborted));
-            }
-            builder.emit(bc);
-        }
-
-        let old_code = std::mem::take(&mut builder.data.code);
-        match abort_label_opt {
-            None => {
-                // this function can never abort, simply replace the function body with an
-                // `assert false` which is guaranteed to fail
-                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
-                let exp_false = builder.mk_bool_const(false);
-                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_false));
-            }
-            Some(label) => {
-                // locate and instrument the return instructions
-                for bc in old_code {
-                    if matches!(bc, Bytecode::Ret(..)) {
-                        // mark that the function does not abort on this path
-                        builder
-                            .emit_with(|id| Bytecode::Load(id, var_aborted, Constant::Bool(false)));
-
-                        // join this return path to the abort path
-                        builder.emit_with(|id| Bytecode::Jump(id, label));
-                    } else {
-                        builder.emit(bc);
-                    }
-                }
-            }
-        }
-
-        builder.data
-    }
-
-    fn instrument_assert_false_check(
-        fun_env: &FunctionEnv,
-        data: &FunctionData,
-        flavor: VerificationFlavor,
-    ) -> FunctionData {
-        // create a clone of the data for inconsistency check
-        let new_data = data.fork(FunctionVariant::Verification(
-            VerificationFlavor::Inconsistency(InconsistencyCanary::AssertFalse, Box::new(flavor)),
-        ));
-
-        // instrumentation
-        let mut builder = FunctionDataBuilder::new(fun_env, new_data);
-
-        // instrument an `assert false` before the return
-        let old_code = std::mem::take(&mut builder.data.code);
-        for bc in old_code {
-            if matches!(bc, Bytecode::Ret(..)) {
-                builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
-                let exp_false = builder.mk_bool_const(false);
-                builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_false));
-            }
-            builder.emit(bc);
-        }
-
-        builder.data
     }
 }
