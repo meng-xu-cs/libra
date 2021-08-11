@@ -429,9 +429,10 @@ impl<'env> FunctionTranslator<'env> {
                     VerificationFlavor::Instantiated(_) => {
                         format!("$verify_{}", flavor)
                     }
-                    VerificationFlavor::Inconsistency(_) => {
+                    VerificationFlavor::Inconsistency(canary, _) => {
                         attribs.push(format!(
-                            "{{:msg_if_verifies \"inconsistency_detected{}\"}} ",
+                            "{{:msg_if_verifies \"inconsistency_detected_{}{}\"}} ",
+                            canary,
                             self.loc_str(&fun_target.get_loc())
                         ));
                         format!("$verify_{}", flavor)

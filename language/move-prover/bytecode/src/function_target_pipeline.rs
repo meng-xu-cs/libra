@@ -25,7 +25,7 @@ pub struct FunctionTargetsHolder {
 pub enum VerificationFlavor {
     Regular,
     Instantiated(usize),
-    Inconsistency(Box<VerificationFlavor>),
+    Inconsistency(InconsistencyCanary, Box<VerificationFlavor>),
 }
 
 impl std::fmt::Display for VerificationFlavor {
@@ -35,7 +35,25 @@ impl std::fmt::Display for VerificationFlavor {
             VerificationFlavor::Instantiated(index) => {
                 write!(f, "instantiated_{}", index)
             }
-            VerificationFlavor::Inconsistency(flavor) => write!(f, "inconsistency_{}", flavor),
+            VerificationFlavor::Inconsistency(canary, flavor) => {
+                write!(f, "inconsistency_{}_{}", canary, flavor)
+            }
+        }
+    }
+}
+
+/// Describes a form of inconsistency.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum InconsistencyCanary {
+    AlwaysAbort,
+    AssertFalse,
+}
+
+impl std::fmt::Display for InconsistencyCanary {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InconsistencyCanary::AlwaysAbort => write!(f, "always_abort"),
+            InconsistencyCanary::AssertFalse => write!(f, "assert_false"),
         }
     }
 }
