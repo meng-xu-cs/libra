@@ -1,12 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use move_cli::sandbox::commands::test;
-
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 pub const CLI_BINARY_PATH: [&str; 6] = ["..", "..", "..", "target", "debug", "move"];
-pub const CLI_METATEST_PATH: [&str; 3] = ["tests", "metatests", "args.txt"];
+pub const CLI_METATEST_PATH: [&str; 2] = ["tests", "metatests"];
 
 fn get_cli_binary_path() -> String {
     let pb: PathBuf = CLI_BINARY_PATH.iter().collect();
@@ -24,7 +25,21 @@ fn run_metatest() {
     let path_metatest = get_metatest_path();
 
     // with coverage
-    assert!(test::run_all(&path_metatest, &path_cli_binary, true).is_ok());
+    assert!(Command::new(&path_cli_binary)
+        .arg("sandbox")
+        .arg("test")
+        .arg("--track-cov")
+        .arg(&path_metatest)
+        .stdout(Stdio::null())
+        .status()
+        .is_ok());
+
     // without coverage
-    assert!(test::run_all(&path_metatest, &path_cli_binary, false).is_ok());
+    assert!(Command::new(&path_cli_binary)
+        .arg("sandbox")
+        .arg("test")
+        .arg(&path_metatest)
+        .stdout(Stdio::null())
+        .status()
+        .is_ok());
 }
