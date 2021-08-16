@@ -30,6 +30,7 @@ use move_model::{
 
 pub mod concrete;
 pub mod shared;
+pub mod symbolic;
 
 use crate::concrete::{
     runtime::{convert_move_type_tag, Runtime},
