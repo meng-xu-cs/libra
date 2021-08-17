@@ -26,14 +26,10 @@ use crate::{
         FunctionTargetProcessor, FunctionTargetsHolder, FunctionVariant, InconsistencyCanary,
         VerificationFlavor,
     },
-    stackless_bytecode::{Bytecode, Constant, PropKind},
+    stackless_bytecode::{Bytecode, PropKind},
 };
 
-use move_model::{
-    exp_generator::ExpGenerator,
-    model::FunctionEnv,
-    ty::{PrimitiveType, Type},
-};
+use move_model::{exp_generator::ExpGenerator, model::FunctionEnv};
 
 // This message is for the boogie wrapper, and not shown to the users.
 pub const EXPECTED_TO_FAIL: &str = "expected to fail";
@@ -67,14 +63,14 @@ impl FunctionTargetProcessor for InconsistencyCheckInstrumenter {
         };
 
         // fork and instrumentation
-        let new_data = Self::instrument_canary_on_abort(fun_env, &data, flavor.clone());
+        let new_data = Self::instrument_assert_false_on_abort(fun_env, &data, flavor.clone());
         targets.insert_target_data(
             &fun_env.get_qualified_id(),
             new_data.variant.clone(),
             new_data,
         );
 
-        let new_data = Self::instrument_canary_on_return(fun_env, &data, flavor);
+        let new_data = Self::instrument_assert_false_on_return(fun_env, &data, flavor);
         targets.insert_target_data(
             &fun_env.get_qualified_id(),
             new_data.variant.clone(),
@@ -91,24 +87,27 @@ impl FunctionTargetProcessor for InconsistencyCheckInstrumenter {
 }
 
 impl InconsistencyCheckInstrumenter {
-    fn instrument_canary_on_abort(
+    fn instrument_assert_false_on_abort(
         fun_env: &FunctionEnv,
         data: &FunctionData,
         flavor: VerificationFlavor,
     ) -> FunctionData {
         // create a clone of the data for inconsistency check
         let new_data = data.fork(FunctionVariant::Verification(
-            VerificationFlavor::Inconsistency(InconsistencyCanary::OnAbort, Box::new(flavor)),
+            VerificationFlavor::Inconsistency(
+                InconsistencyCanary::AssertFalseOnAbort,
+                Box::new(flavor),
+            ),
         ));
 
         // instrumentation
         let mut builder = FunctionDataBuilder::new(fun_env, new_data);
 
-        // instrument an `assert false` before the return
+        // instrument an `assert false` before the abort
         let old_code = std::mem::take(&mut builder.data.code);
         for bc in old_code {
             if matches!(bc, Bytecode::Abort(..)) {
-                Self::instrument_canary(&mut builder);
+                Self::instrument_assert_false(&mut builder);
             }
             builder.emit(bc);
         }
@@ -116,14 +115,17 @@ impl InconsistencyCheckInstrumenter {
         builder.data
     }
 
-    fn instrument_canary_on_return(
+    fn instrument_assert_false_on_return(
         fun_env: &FunctionEnv,
         data: &FunctionData,
         flavor: VerificationFlavor,
     ) -> FunctionData {
         // create a clone of the data for inconsistency check
         let new_data = data.fork(FunctionVariant::Verification(
-            VerificationFlavor::Inconsistency(InconsistencyCanary::OnReturn, Box::new(flavor)),
+            VerificationFlavor::Inconsistency(
+                InconsistencyCanary::AssertFalseOnReturn,
+                Box::new(flavor),
+            ),
         ));
 
         // instrumentation
@@ -133,7 +135,7 @@ impl InconsistencyCheckInstrumenter {
         let old_code = std::mem::take(&mut builder.data.code);
         for bc in old_code {
             if matches!(bc, Bytecode::Ret(..)) {
-                Self::instrument_canary(&mut builder);
+                Self::instrument_assert_false(&mut builder);
             }
             builder.emit(bc);
         }
@@ -141,7 +143,7 @@ impl InconsistencyCheckInstrumenter {
         builder.data
     }
 
-    fn instrument_canary(builder: &mut FunctionDataBuilder) {
+    fn instrument_assert_false(builder: &mut FunctionDataBuilder) {
         builder.set_loc_and_vc_info(builder.fun_env.get_spec_loc(), EXPECTED_TO_FAIL);
         let exp_false = builder.mk_bool_const(false);
         builder.emit_with(|id| Bytecode::Prop(id, PropKind::Assert, exp_false));
