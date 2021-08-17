@@ -45,6 +45,7 @@ impl std::fmt::Display for VerificationFlavor {
 /// Describes a form of inconsistency.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InconsistencyCanary {
+    AlwaysAbort,
     AssertFalseOnAbort,
     AssertFalseOnReturn,
 }
@@ -52,6 +53,7 @@ pub enum InconsistencyCanary {
 impl std::fmt::Display for InconsistencyCanary {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
+            InconsistencyCanary::AlwaysAbort => write!(f, "always_abort"),
             InconsistencyCanary::AssertFalseOnAbort => write!(f, "assert_false_on_abort"),
             InconsistencyCanary::AssertFalseOnReturn => write!(f, "assert_false_on_return"),
         }
