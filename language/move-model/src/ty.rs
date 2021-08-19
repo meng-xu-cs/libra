@@ -8,7 +8,7 @@ use crate::{
     model::{GlobalEnv, ModuleId, StructEnv, StructId},
     symbol::{Symbol, SymbolPool},
 };
-use move_binary_format::normalized::Type as MType;
+use move_binary_format::{file_format::TypeParameterIndex, normalized::Type as MType};
 use move_core_types::language_storage::{StructTag, TypeTag};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -737,7 +737,7 @@ impl Default for Substitution {
 /// both memories will result in instantiations which when applied
 /// create f<bool> and invariant<u64>.
 pub struct TypeUnificationAdapter {
-    type_vars_map: BTreeMap<u16, (bool, u16)>,
+    type_vars_map: BTreeMap<u16, (bool, TypeParameterIndex)>,
     types_adapted_lhs: Vec<Type>,
     types_adapted_rhs: Vec<Type>,
 }
@@ -749,16 +749,28 @@ impl TypeUnificationAdapter {
     fn new<'a, I>(
         lhs_types: I,
         rhs_types: I,
-        treat_lhs_type_param_as_var: bool,
-        treat_rhs_type_param_as_var: bool,
+        treat_lhs_type_param_as_var_after_index: Option<TypeParameterIndex>,
+        treat_rhs_type_param_as_var_after_index: Option<TypeParameterIndex>,
     ) -> Self
     where
         I: Iterator<Item = &'a Type> + Clone,
     {
-        assert!(
-            treat_rhs_type_param_as_var || treat_lhs_type_param_as_var,
+        debug_assert!(
+            treat_lhs_type_param_as_var_after_index.is_some()
+                || treat_rhs_type_param_as_var_after_index.is_some(),
             "At least one side of the unification must be treated as variable"
         );
+
+        // Check the input types do not contain type variables.
+        debug_assert!(
+            lhs_types.clone().chain(rhs_types.clone()).all(|ty| {
+                let mut b = true;
+                ty.visit(&mut |t| b = b && !matches!(t, Type::Var(_)));
+                b
+            }),
+            "unexpected type variable"
+        );
+
         // Compute the number of type parameters for each side.
         let mut lhs_type_param_count = 0;
         let mut rhs_type_param_count = 0;
@@ -774,37 +786,31 @@ impl TypeUnificationAdapter {
             ty.visit(&mut |t| count_type_param(t, &mut rhs_type_param_count));
         }
 
-        // Check the input types do not contain type variables.
-        debug_assert!(
-            lhs_types.clone().chain(rhs_types.clone()).all(|ty| {
-                let mut b = true;
-                ty.visit(&mut |t| b = b && !matches!(t, Type::Var(_)));
-                b
-            }),
-            "unexpected type variable"
-        );
-
         // Create a type variable instantiation for each side.
-        let count = 0;
+        let mut var_count = 0;
         let mut type_vars_map = BTreeMap::new();
-        let lhs_inst = if treat_lhs_type_param_as_var {
-            (0..lhs_type_param_count)
-                .map(|i| {
-                    let idx = count + i;
+        let lhs_inst = if let Some(boundary) = treat_lhs_type_param_as_var_after_index {
+            (0..boundary)
+                .map(Type::TypeParameter)
+                .chain((boundary..lhs_type_param_count).map(|i| {
+                    let idx = var_count;
+                    var_count += 1;
                     type_vars_map.insert(idx, (true, i));
                     Type::Var(idx)
-                })
+                }))
                 .collect()
         } else {
             vec![]
         };
-        let rhs_inst = if treat_rhs_type_param_as_var {
-            (0..rhs_type_param_count)
-                .map(|i| {
-                    let idx = count + lhs_type_param_count + i;
+        let rhs_inst = if let Some(boundary) = treat_rhs_type_param_as_var_after_index {
+            (0..boundary)
+                .map(Type::TypeParameter)
+                .chain((boundary..rhs_type_param_count).map(|i| {
+                    let idx = var_count;
+                    var_count += 1;
                     type_vars_map.insert(idx, (false, i));
                     Type::Var(idx)
-                })
+                }))
                 .collect()
         } else {
             vec![]
@@ -821,21 +827,6 @@ impl TypeUnificationAdapter {
         }
     }
 
-    /// Create a TypeUnificationAdapter with the goal of unifying one pair of types
-    pub fn new_one(
-        lhs_type: &Type,
-        rhs_type: &Type,
-        treat_lhs_type_param_as_var: bool,
-        treat_rhs_type_param_as_var: bool,
-    ) -> Self {
-        Self::new(
-            std::iter::once(lhs_type),
-            std::iter::once(rhs_type),
-            treat_lhs_type_param_as_var,
-            treat_rhs_type_param_as_var,
-        )
-    }
-
     /// Create a TypeUnificationAdapter with the goal of unifying two type tuples
     pub fn new_vec(
         lhs_types: &[Type],
@@ -843,11 +834,37 @@ impl TypeUnificationAdapter {
         treat_lhs_type_param_as_var: bool,
         treat_rhs_type_param_as_var: bool,
     ) -> Self {
+        let treat_lhs_type_param_as_var_after_index = if treat_lhs_type_param_as_var {
+            Some(0)
+        } else {
+            None
+        };
+        let treat_rhs_type_param_as_var_after_index = if treat_rhs_type_param_as_var {
+            Some(0)
+        } else {
+            None
+        };
         Self::new(
             lhs_types.iter(),
             rhs_types.iter(),
-            treat_lhs_type_param_as_var,
-            treat_rhs_type_param_as_var,
+            treat_lhs_type_param_as_var_after_index,
+            treat_rhs_type_param_as_var_after_index,
+        )
+    }
+
+    /// Create a TypeUnificationAdapter with the goal of unifying two type tuples, but additionally
+    /// allow a boundary to be specified.
+    pub fn new_vec_with_boundary(
+        lhs_types: &[Type],
+        rhs_types: &[Type],
+        treat_lhs_type_param_as_var_after_index: Option<TypeParameterIndex>,
+        treat_rhs_type_param_as_var_after_index: Option<TypeParameterIndex>,
+    ) -> Self {
+        Self::new(
+            lhs_types.iter(),
+            rhs_types.iter(),
+            treat_lhs_type_param_as_var_after_index,
+            treat_rhs_type_param_as_var_after_index,
         )
     }
 
