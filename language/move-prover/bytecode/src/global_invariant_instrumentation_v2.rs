@@ -742,7 +742,7 @@ impl<'a> Instrumenter<'a> {
                     &fun_mem.inst,
                     &inv_mem.inst,
                     /* treat_lhs_type_param_as_var */ false,
-                    /* treat_rhs_type_local_as_var */ true,
+                    /* treat_rhs_type_param_as_var */ true,
                 );
                 #[cfg(invariant_trace)]
                 println!(

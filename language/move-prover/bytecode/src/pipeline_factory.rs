@@ -10,6 +10,7 @@ use crate::{
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetProcessor},
     global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
     inconsistency_check::InconsistencyCheckInstrumenter,
+    instantiation_analysis::InstantiationAnalysisProcessor,
     livevar_analysis::LiveVarAnalysisProcessor,
     loop_analysis::LoopAnalysisProcessor,
     memory_instrumentation::MemoryInstrumentationProcessor,
@@ -36,6 +37,7 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         MemoryInstrumentationProcessor::new(),
         CleanAndOptimizeProcessor::new(),
         UsageProcessor::new(),
+        InstantiationAnalysisProcessor::new(),
         VerificationAnalysisProcessorV2::new(),
         LoopAnalysisProcessor::new(),
         // spec instrumentation
