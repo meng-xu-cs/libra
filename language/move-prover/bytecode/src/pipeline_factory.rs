@@ -21,6 +21,7 @@ use crate::{
     reaching_def_analysis::ReachingDefProcessor,
     spec_instrumentation::SpecInstrumentationProcessor,
     usage_analysis::UsageProcessor,
+    verification_analysis::VerificationAnalysisProcessor,
     verification_analysis_v2::VerificationAnalysisProcessorV2,
 };
 
@@ -38,6 +39,7 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         CleanAndOptimizeProcessor::new(),
         UsageProcessor::new(),
         InstantiationAnalysisProcessor::new(),
+        VerificationAnalysisProcessor::new(),
         VerificationAnalysisProcessorV2::new(),
         LoopAnalysisProcessor::new(),
         // spec instrumentation
