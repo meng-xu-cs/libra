@@ -69,7 +69,7 @@ impl FunctionTargetProcessor for GlobalInvariantInstrumentationProcessor {
                     .all(|(i, ty)| matches!(ty, Type::TypeParameter(idx) if *idx as usize == i));
 
             if is_original {
-                main_invariants = Some(invariants);
+                main_invariants = Some(invariants.clone());
             } else {
                 let variant_data = data.fork_with_instantiation(
                     env,
@@ -77,7 +77,7 @@ impl FunctionTargetProcessor for GlobalInvariantInstrumentationProcessor {
                     fun_phantom,
                     FunctionVariant::Verification(VerificationFlavor::Instantiated(variants.len())),
                 );
-                variants.push((variant_data, invariants));
+                variants.push((variant_data, invariants.clone()));
             }
         }
 
@@ -107,9 +107,9 @@ impl FunctionTargetProcessor for GlobalInvariantInstrumentationProcessor {
 struct Instrumenter<'a> {
     options: &'a ProverOptions,
     builder: FunctionDataBuilder<'a>,
-    related_invariants: &'a BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
+    related_invariants: BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
     related_invariants_by_mem:
-        BTreeMap<QualifiedInstId<StructId>, BTreeMap<GlobalId, BTreeSet<&'a Vec<Type>>>>,
+        BTreeMap<QualifiedInstId<StructId>, BTreeMap<GlobalId, BTreeSet<Vec<Type>>>>,
     saved_from_before_instr_or_call: Option<(TranslatedSpec, BTreeSet<GlobalId>)>,
 }
 
@@ -117,7 +117,7 @@ impl<'a> Instrumenter<'a> {
     fn run(
         fun_env: &FunctionEnv<'a>,
         data: FunctionData,
-        related_invariants: &'a BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
+        related_invariants: BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
     ) -> FunctionData {
         let env = fun_env.module_env.env;
         let options = ProverOptions::get(env);
@@ -135,7 +135,7 @@ impl<'a> Instrumenter<'a> {
                         .or_insert_with(BTreeMap::new)
                         .entry(*inv_id)
                         .or_insert_with(BTreeSet::new)
-                        .insert(inv_inst);
+                        .insert(inv_inst.clone());
                 }
             }
         }
@@ -232,18 +232,7 @@ impl<'a> Instrumenter<'a> {
             // callers, assert them just before a return instruction (the caller will be
             // assuming they hold).
             Ret(_, _) => {
-                if disabled_inv_fun_set.contains(&fun_id) {
-                    // TODO: It is only necessary to assert invariants that were disabled here.
-                    // Asserting more won't hurt, but generates unnecessary work for the prover.
-                    let (global_target_invs, _update_target_invs) =
-                        self.separate_update_invariants(target_invariants);
-                    let xlated_spec = self.translate_invariants(&global_target_invs);
-                    self.assert_or_assume_translated_invariants(
-                        &xlated_spec.invariants,
-                        &global_target_invs,
-                        PropKind::Assert,
-                    );
-                }
+                // TODO
                 self.builder.emit(bc);
             }
             _ => self.builder.emit(bc),
@@ -289,29 +278,25 @@ impl<'a> Instrumenter<'a> {
     // that are embedded in "old" in the "update" invariants.
     fn emit_assumes_and_saves_before_bytecode(
         &mut self,
-        modified_invariants: &BTreeMap<GlobalId, BTreeSet<&Vec<Type>>>,
+        modified_invariants: &BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
     ) {
         // translate all the invariants. Some were already translated at the entrypoint, but
         // that's ok because entrypoint invariants are global invariants that don't have "old",
         // so redundant state tags are not going to be a problem.
-        let mut xlated_invs = self.translate_invariants_2(modified_invs);
+        let _xlated_invs = self.translate_invariants_2(modified_invariants);
 
-        let (global_invs, _update_invs) = self.separate_update_invariants(&modified_invs);
+        // let (global_invs, _update_invs) = self.separate_update_invariants(&modified_invs);
 
         // assume the global invariants that weren't assumed at entrypoint
-        self.assert_or_assume_translated_invariants(
-            &xlated_invs.invariants,
-            &modified_assumes,
-            PropKind::Assume,
-        );
+
         // emit the instructions to save state in the state tags assigned in the previous step
-        self.emit_state_saves_for_update_invs(&mut xlated_invs);
+        // self.emit_state_saves_for_update_invs(&mut xlated_invs);
         // Save the translated invariants for use in asserts after instruction or opaque call end
-        if self.saved_from_before_instr_or_call.is_none() {
-            self.saved_from_before_instr_or_call = Some((xlated_invs, modified_invs));
-        } else {
-            panic!("self.saved_from_pre should be None");
-        }
+        // if self.saved_from_before_instr_or_call.is_none() {
+        //    self.saved_from_before_instr_or_call = Some((xlated_invs, modified_invs));
+        //} else {
+        //    panic!("self.saved_from_pre should be None");
+        //}
     }
 
     fn emit_asserts_after_bytecode(&mut self) {
@@ -412,11 +397,11 @@ impl<'a> Instrumenter<'a> {
 
     fn translate_invariants_2(
         &mut self,
-        invs_with_insts: &BTreeMap<GlobalId, &BTreeSet<Vec<Type>>>,
+        invs_with_insts: &BTreeMap<GlobalId, BTreeSet<Vec<Type>>>,
     ) -> TranslatedSpec {
         let inst_invs = invs_with_insts
             .iter()
-            .map(|(inv_id, inv_insts)| inv_insts.iter().map(|inst| (*inv_id, inst.clone())))
+            .map(|(inv_id, inv_insts)| inv_insts.iter().map(|inst| (*inv_id, (*inst).clone())))
             .flatten();
         SpecTranslator::translate_invariants_by_id(
             self.options.auto_trace_level.invariants(),
