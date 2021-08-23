@@ -23,6 +23,53 @@ use std::{
     fmt::{self, Formatter},
 };
 
+// A named tuple for holding of the invariant relevance information
+pub struct InvariantRelevance {
+    /// Global invariants covering memories that are used in this function
+    uses: BTreeSet<GlobalId>,
+    /// Global invariants covering memories that are modified in this function
+    mods: BTreeSet<GlobalId>,
+    /// Global invariants covering memories that are directly used in this function
+    direct_uses: BTreeSet<GlobalId>,
+    /// Global invariants covering memories that are directly modified in this function
+    direct_mods: BTreeSet<GlobalId>,
+}
+
+impl InvariantRelevance {
+    fn prune_suspendable(&mut self, env: &GlobalEnv) -> Self {
+        fn separate(holder: &mut BTreeSet<GlobalId>, env: &GlobalEnv) -> BTreeSet<GlobalId> {
+            let mut split = BTreeSet::new();
+            holder.retain(|inv_id| {
+                if is_invariant_suspendable(env, *inv_id) {
+                    split.insert(*inv_id);
+                    false
+                } else {
+                    true
+                }
+            });
+            split
+        }
+
+        let uses = separate(&mut self.uses, env);
+        let mods = separate(&mut self.mods, env);
+        let direct_uses = separate(&mut self.direct_uses, env);
+        let direct_mods = separate(&mut self.direct_mods, env);
+        Self {
+            uses,
+            mods,
+            direct_uses,
+            direct_mods,
+        }
+    }
+
+    fn subsume_callee(&mut self, suspended: &InvariantRelevance) {
+        assert!(self.uses.is_superset(&suspended.uses));
+        assert!(self.mods.is_superset(&suspended.mods));
+        self.direct_uses.extend(&suspended.uses);
+        self.direct_mods.extend(&suspended.mods);
+    }
+}
+
 // Analysis info to save for global_invariant_instrumentation phase
 pub struct InvariantAnalysisData {
     /// Functions which have invariants checked on return instead of in body
@@ -30,7 +77,7 @@ pub struct InvariantAnalysisData {
     /// Functions which invariants checking is turned-off anywhere in the function
     pub fun_set_with_no_inv_check: BTreeSet<QualifiedId<FunId>>,
     /// A mapping from function to the set of global invariants used and modified, respectively
-    pub fun_to_inv_map: BTreeMap<QualifiedId<FunId>, (BTreeSet<GlobalId>, BTreeSet<GlobalId>)>,
+    pub fun_to_inv_map: BTreeMap<QualifiedId<FunId>, InvariantRelevance>,
 }
 
 #[derive(Clone)]
@@ -91,6 +138,7 @@ impl FunctionTargetProcessor for InstantiationAnalysisProcessor {
     fn name(&self) -> String {
         "instantiation_analysis".to_string()
     }
+
     fn dump_result(
         &self,
         f: &mut Formatter<'_>,
@@ -183,8 +231,9 @@ impl FunctionTargetProcessor for InstantiationAnalysisProcessor {
             // Rule 1: external-facing functions are not allowed in the N set,
             // UNLESS they don't modify any memory that are checked in any suspendable invariant.
             if fun_env.has_unknown_callers() {
-                let (_, inv_wo) = fun_to_inv_map.get(fun_id).unwrap();
-                let num_suspendable_inv_modified = inv_wo
+                let relevance = fun_to_inv_map.get(fun_id).unwrap();
+                let num_suspendable_inv_modified = relevance
+                    .mods
                     .iter()
                     .filter(|inv_id| is_invariant_suspendable(env, **inv_id))
                     .count();
@@ -301,7 +350,7 @@ impl InstantiationAnalysisProcessor {
     fn build_function_to_invariants_map(
         env: &GlobalEnv,
         targets: &FunctionTargetsHolder,
-    ) -> BTreeMap<QualifiedId<FunId>, (BTreeSet<GlobalId>, BTreeSet<GlobalId>)> {
+    ) -> BTreeMap<QualifiedId<FunId>, InvariantRelevance> {
         // collect all global invariants
         let mut global_invariants = vec![];
         for menv in env.get_modules() {
@@ -328,14 +377,18 @@ impl InstantiationAnalysisProcessor {
     fn find_relevant_invariants<'a>(
         target: &FunctionTarget,
         invariants: impl Iterator<Item = &'a GlobalInvariant>,
-    ) -> (BTreeSet<GlobalId>, BTreeSet<GlobalId>) {
-        let mem_usage = usage_analysis::get_used_memory_inst(target);
-        let mem_modified = usage_analysis::get_modified_memory_inst(target);
+    ) -> InvariantRelevance {
+        let mem_uses = usage_analysis::get_used_memory_inst(target);
+        let mem_mods = usage_analysis::get_modified_memory_inst(target);
+        let mem_direct_uses = usage_analysis::get_directly_used_memory_inst(target);
+        let mem_direct_mods = usage_analysis::get_directly_modified_memory_inst(target);
 
         let mut related_rw = BTreeSet::new();
         let mut related_wo = BTreeSet::new();
+        let mut related_direct_rw = BTreeSet::new();
+        let mut related_direct_wo = BTreeSet::new();
         for inv in invariants {
-            for fun_mem in mem_usage.iter() {
+            for fun_mem in mem_uses.iter() {
                 for inv_mem in &inv.mem_usage {
                     if inv_mem.module_id != fun_mem.module_id || inv_mem.id != fun_mem.id {
                         continue;
@@ -347,53 +400,81 @@ impl InstantiationAnalysisProcessor {
                         related_rw.insert(inv.id);
                         // this exploits the fact that the `used_memory` set (a read-write set) is
                         // always a superset of the `modified_memory` set.
-                        if mem_modified.contains(fun_mem) {
+                        if mem_mods.contains(fun_mem) {
                             related_wo.insert(inv.id);
+                        }
+                        if mem_direct_uses.contains(fun_mem) {
+                            related_direct_rw.insert(inv.id);
+                        }
+                        if mem_direct_mods.contains(fun_mem) {
+                            related_direct_wo.insert(inv.id);
                         }
                     }
                 }
             }
         }
-        (related_rw, related_wo)
+        InvariantRelevance {
+            uses: related_rw,
+            mods: related_wo,
+            direct_uses: related_direct_rw,
+            direct_mods: related_direct_wo,
+        }
     }
 
     // Prune the Map[fun_id -> (Set<global_id>, Set<global_id>)] returned with
     // `build_function_to_invariants_map` with invariant-checking related pragmas.
     fn prune_function_to_invariants_map(
         env: &GlobalEnv,
-        original: BTreeMap<QualifiedId<FunId>, (BTreeSet<GlobalId>, BTreeSet<GlobalId>)>,
+        original: BTreeMap<QualifiedId<FunId>, InvariantRelevance>,
         fun_set_with_no_inv_check: &BTreeSet<QualifiedId<FunId>>,
-    ) -> BTreeMap<QualifiedId<FunId>, (BTreeSet<GlobalId>, BTreeSet<GlobalId>)> {
+    ) -> BTreeMap<QualifiedId<FunId>, InvariantRelevance> {
+        // NOTE: All fields in `InvariantRelevance` are derived based on unification of memory
+        // usage/modification of the function and the invariant. In `MemoryUsageAnalysis`, both used
+        // memory and modified memory subsumes the set summarized in the called functions.
+        //
+        // If the called function is NOT a generic function, this means that all the invariants that
+        // are applicable to the called function will be applicable to its caller function as well.
+        //
+        // If the called function IS a generic function, this means that all the invariants that are
+        // applicable to this specific instantiation of the called function (which can be another
+        // type parameter, i.e., a type parameter from the caller function) will be applicable to
+        // this caller function as well.
+        //
+        // This means that if we disable a suspendable invariant `I` in the called function, for all
+        // the callers of this called function, `I` is either
+        // - already marked as relevant to the caller (in the `uses/mods` set), or
+        // - `I` is not relevant to the caller and we should not insert `I` to the caller.
+
+        // Step 1: remove suspended invariants from the the relevance set. These suspended
+        // invariants themselves forms a relevance set which will be directly used/modified in all
+        // callers of this function.
         let mut pruned = BTreeMap::new();
-        for (fun_id, (mut inv_rw_set, mut inv_wo_set)) in original.into_iter() {
+        let mut deferred = BTreeMap::new();
+        for (fun_id, mut relevance) in original.into_iter() {
             if fun_set_with_no_inv_check.contains(&fun_id) {
-                inv_rw_set.retain(|inv_id| !is_invariant_suspendable(env, *inv_id));
-                inv_wo_set.retain(|inv_id| !is_invariant_suspendable(env, *inv_id));
-                // NOTE: here we do not need to insert the suspendable invariants back to all the
-                // callers and why is that?
-                //
-                // inv_rw_set and inv_wo_set are derived based on unification of memory
-                // usage/modification of the function and the invariant. In `MemoryUsageAnalysis`,
-                // both used memory and modified memory subsumes the set summarized in the called
-                // functions.
-                //
-                // If the called function is NOT a generic function, this means that all the
-                // invariants that are applicable to the called function will be applicable to its
-                // caller function as well.
-                //
-                // If the called function IS a generic function, this means that all the invariants
-                // that are applicable to this specific instantiation of the called function (which
-                // can be another type parameter, i.e., a type parameter from the caller function)
-                // will be applicable to this caller function as well.
-                //
-                // This means that if we disable a suspendable invariant `I` in the called function,
-                // for all the callers of this called function, `I` is either
-                // - already marked as relevant to the caller, or
-                // - `I` is not relevant to the caller and we should not insert `I` to the caller.
+                let suspended = relevance.prune_suspendable(env);
+                deferred.insert(fun_id, suspended);
             }
-            pruned.insert(fun_id, (inv_rw_set, inv_wo_set));
+            pruned.insert(fun_id, relevance);
         }
-        pruned
+
+        // Step 2: defer the suspended invariants back to the caller, marking them in the directly
+        // used/modified sets.
+        let mut result = BTreeMap::new();
+        for (fun_id, mut relevance) in pruned.into_iter() {
+            if !fun_set_with_no_inv_check.contains(&fun_id) {
+                let fenv = env.get_function(fun_id);
+                for callee in fenv.get_called_functions() {
+                    if fun_set_with_no_inv_check.contains(&callee) {
+                        // all invariants in the callee side will now be deferred to this function
+                        let suspended = deferred.get(&callee).unwrap();
+                        relevance.subsume_callee(suspended);
+                    }
+                }
+            }
+            result.insert(fun_id, relevance);
+        }
+        result
     }
 }
 
@@ -459,7 +540,7 @@ impl InstantiationAnalysisProcessor {
         target_param_insts
     }
 
-    // Find what the instantiation combinations for all the type parameters.
+    // Find the instantiation combinations for all the type parameters.
     fn progressive_instantiation(
         mem_usage_lhs: &BTreeSet<QualifiedInstId<StructId>>,
         mem_usage_rhs: &BTreeSet<QualifiedInstId<StructId>>,
@@ -586,13 +667,17 @@ impl InstantiationAnalysisProcessor {
             .collect();
         let fun_type_params_arity = target.get_type_parameters().len();
 
-        // collect relevant global invariants
+        // retrieve relevant global invariants
         let inv_analysis = env.get_extension::<InvariantAnalysisData>().unwrap();
-        let (inv_rw, _) = inv_analysis
+        let relevance = inv_analysis
             .fun_to_inv_map
             .get(&target.func_env.get_qualified_id())
             .unwrap();
-        for inv_id in inv_rw {
+
+        // we only use the `direct_uses` set because this represents the maximum set of invariants
+        // that will ever be applicable to this funciton: i.e., we should not assume/assert any
+        // invariant outside of this `direct_uses` set in any instantiation of this function.
+        for inv_id in &relevance.direct_uses {
             let invariant = env.get_global_invariant(*inv_id).unwrap();
             let inv_type_params = match &invariant.kind {
                 ConditionKind::GlobalInvariant(params) => params,
