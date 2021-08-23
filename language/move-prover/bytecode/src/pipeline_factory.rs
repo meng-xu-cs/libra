@@ -8,7 +8,7 @@ use crate::{
     debug_instrumentation::DebugInstrumenter,
     eliminate_imm_refs::EliminateImmRefsProcessor,
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetProcessor},
-    global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
+    global_invariant_instrumentation::GlobalInvariantInstrumentationProcessor,
     inconsistency_check::InconsistencyCheckInstrumenter,
     instantiation_analysis::InstantiationAnalysisProcessor,
     livevar_analysis::LiveVarAnalysisProcessor,
@@ -45,7 +45,7 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         // spec instrumentation
         SpecInstrumentationProcessor::new(),
         DataInvariantInstrumentationProcessor::new(),
-        GlobalInvariantInstrumentationProcessorV2::new(),
+        GlobalInvariantInstrumentationProcessor::new(),
     ];
     if options.mutation {
         processors.push(MutationTester::new()); // pass which may do nothing

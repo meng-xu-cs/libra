@@ -61,6 +61,8 @@ pub struct FunctionData {
     pub variant: FunctionVariant,
     /// The type instantiation.
     pub type_args: Vec<Type>,
+    /// Phantom types for the invariants
+    pub phantom_types: Vec<Type>,
     /// The bytecode.
     pub code: Vec<Bytecode>,
     /// The locals, including parameters.
@@ -421,6 +423,7 @@ impl FunctionData {
         FunctionData {
             variant: FunctionVariant::Baseline,
             type_args: vec![],
+            phantom_types: vec![],
             code,
             local_types,
             return_types,
@@ -484,6 +487,7 @@ impl FunctionData {
         &self,
         env: &GlobalEnv,
         inst: &[Type],
+        phantoms: &[Type],
         new_variant: FunctionVariant,
     ) -> Self {
         let type_args = if self.type_args.is_empty() {
@@ -522,17 +526,13 @@ impl FunctionData {
         Self {
             variant: new_variant,
             type_args,
+            phantom_types: phantoms.to_vec(),
             code,
             local_types,
             return_types,
             modify_targets,
             ..self.clone()
         }
-    }
-
-    /// Get the instantiation of this function as a vector of types.
-    pub fn get_type_instantiation(&self, _fun_env: &FunctionEnv) -> Vec<Type> {
-        self.type_args.clone()
     }
 }
 
