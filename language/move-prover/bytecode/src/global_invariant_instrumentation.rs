@@ -16,7 +16,7 @@ use crate::{
 };
 
 use move_model::{
-    ast::{ConditionKind, Exp, GlobalInvariant},
+    ast::{ConditionKind, Exp},
     exp_generator::ExpGenerator,
     model::{FunId, FunctionEnv, GlobalEnv, GlobalId, Loc, QualifiedId, QualifiedInstId, StructId},
     pragmas::CONDITION_ISOLATED_PROP,
@@ -24,7 +24,6 @@ use move_model::{
     ty::{Type, TypeUnificationAdapter, Variance},
 };
 
-use itertools::Itertools;
 use std::collections::{BTreeMap, BTreeSet};
 
 const GLOBAL_INVARIANT_FAILS_MESSAGE: &str = "global memory invariant does not hold";
@@ -207,13 +206,10 @@ impl<'a> Instrumenter<'a> {
                 let mem = mid.qualified_inst(*sid, inst.to_owned());
                 self.emit_invariants_for_bytecode(&bc, &mem);
             }
-            // Emit assumes before procedure calls.  This also deals with saves for update invariants.
+            // Emit assumes before procedure calls. This is needed for update invariants.
             Call(_, _, OpaqueCallBegin(module_id, id, _), _, _) => {
-                self.assume_invariants_for_opaque_begin(
-                    module_id.qualified(*id),
-                    entrypoint_invariants,
-                    inv_ana_data,
-                );
+                let _fun_id = module_id.qualified(*id);
+                self.assume_invariants_for_opaque_begin();
                 // Then emit the call instruction.
                 self.builder.emit(bc);
             }
@@ -221,18 +217,16 @@ impl<'a> Instrumenter<'a> {
             Call(_, _, OpaqueCallEnd(module_id, id, _), _, _) => {
                 // First, emit the call instruction.
                 self.builder.emit(bc.clone());
-                self.assert_invariants_for_opaque_end(module_id.qualified(*id), inv_ana_data)
+
+                let _fun_id = module_id.qualified(*id);
+                self.assert_invariants_for_opaque_end();
             }
             // An inline call needs to be treated similarly (but there is just one instruction.
             Call(_, _, Function(module_id, id, _), _, _) => {
-                self.assume_invariants_for_opaque_begin(
-                    module_id.qualified(*id),
-                    entrypoint_invariants,
-                    inv_ana_data,
-                );
+                self.assume_invariants_for_opaque_begin();
                 // Then emit the call instruction.
                 self.builder.emit(bc.clone());
-                self.assert_invariants_for_opaque_end(module_id.qualified(*id), inv_ana_data)
+                self.assert_invariants_for_opaque_end()
             }
             // When invariants are disabled in the body of this function but not in its
             // callers, assert them just before a return instruction (the caller will be
@@ -256,68 +250,23 @@ impl<'a> Instrumenter<'a> {
         }
     }
 
-    /// Emit invariants and saves for call to OpaqueCallBegin in the
-    /// special case where the invariants are not checked in the
-    /// called function.
-    fn assume_invariants_for_opaque_begin(
-        &mut self,
-        called_fun_id: QualifiedId<FunId>,
-        entrypoint_invariants: &BTreeSet<GlobalId>,
-        inv_ana_data: &InvariantAnalysisData,
-    ) {
-        let target_invariants = &inv_ana_data.target_invariants;
-        let disabled_inv_fun_set = &inv_ana_data.disabled_inv_fun_set;
-        let non_inv_fun_set = &inv_ana_data.non_inv_fun_set;
-        let funs_that_modify_inv = &inv_ana_data.funs_that_modify_inv;
+    /// Emit invariants and saves for call to OpaqueCallBegin in the special case where the
+    /// invariants are not checked in the called function.
+    fn assume_invariants_for_opaque_begin(&mut self) {}
+
+    /// Called when invariants need to be checked, but an opaque called function
+    /// doesn't check them.
+    fn assert_invariants_for_opaque_end(&mut self) {
         // Normally, invariants would be assumed and asserted in
         // a called function, and so there would be no need to assume
         // the invariant before the call.
+        //
         // When invariants are not disabled in the current function
         // but the called function doesn't check them, we are going to
         // need to assert the invariant when the call returns (at the
         // matching OpaqueCallEnd instruction). So, we assume the
         // invariant here, before the OpaqueCallBegin, so that we have
         // a hope of proving it later.
-        let fun_id = self.builder.fun_env.get_qualified_id();
-        if !disabled_inv_fun_set.contains(&fun_id)
-            && !non_inv_fun_set.contains(&fun_id)
-            && non_inv_fun_set.contains(&called_fun_id)
-        {
-            // Do not assume update invs
-            // This prevents ASSERTING the updates because emit_assumes_and_saves
-            // stores translated invariants for assertion in assume_invariants_for_opaque_end,
-            // and we don't want updates to be asserted there.
-            // TODO: This should all be refactored to eliminate hacks like the previous
-            // sentence.
-            let (global_invs, _update_invs) = self.separate_update_invariants(target_invariants);
-            // assume the invariants that are modified by the called function
-            let modified_invs =
-                self.get_invs_modified_by_fun(&global_invs, called_fun_id, funs_that_modify_inv);
-            self.emit_assumes_and_saves_before_bytecode(modified_invs, entrypoint_invariants);
-        }
-    }
-
-    /// Called when invariants need to be checked, but an opaque called function
-    /// doesn't check them.
-    fn assert_invariants_for_opaque_end(
-        &mut self,
-        called_fun_id: QualifiedId<FunId>,
-        inv_ana_data: &InvariantAnalysisData,
-    ) {
-        let disabled_inv_fun_set = &inv_ana_data.disabled_inv_fun_set;
-        let non_inv_fun_set = &inv_ana_data.non_inv_fun_set;
-        // Add invariant assertions after function call when invariant holds in the
-        // body of the current function, but the called function does not assert
-        // invariants.
-        // The asserted invariant ensures the the invariant
-        // holds in the body of the current function, as is required.
-        let fun_id = self.builder.fun_env.get_qualified_id();
-        if !disabled_inv_fun_set.contains(&fun_id)
-            && !non_inv_fun_set.contains(&fun_id)
-            && non_inv_fun_set.contains(&called_fun_id)
-        {
-            self.emit_asserts_after_bytecode();
-        }
     }
 
     /// Emit invariant-related assumptions and assertions around a bytecode.
@@ -380,43 +329,6 @@ impl<'a> Instrumenter<'a> {
             // This should never happen
             panic!("saved_from_pre should be Some");
         }
-    }
-
-    /// Given a set of invariants, return a pair of sets: global invariants and update invariants
-    fn separate_update_invariants(
-        &self,
-        invariants: &BTreeSet<GlobalId>,
-    ) -> (BTreeSet<GlobalId>, BTreeSet<GlobalId>) {
-        let global_env = self.builder.fun_env.module_env.env;
-        let mut global_invs: BTreeSet<GlobalId> = BTreeSet::new();
-        let mut update_invs: BTreeSet<GlobalId> = BTreeSet::new();
-        for inv_id in invariants {
-            let inv = global_env.get_global_invariant(*inv_id).unwrap();
-            if matches!(inv.kind, ConditionKind::GlobalInvariantUpdate(..)) {
-                update_invs.insert(*inv_id);
-            } else {
-                global_invs.insert(*inv_id);
-            }
-        }
-        (global_invs, update_invs)
-    }
-
-    /// Returns the set of invariants modified by a function
-    fn get_invs_modified_by_fun(
-        &self,
-        inv_set: &BTreeSet<GlobalId>,
-        fun_id: QualifiedId<FunId>,
-        funs_that_modify_inv: &BTreeMap<GlobalId, BTreeSet<QualifiedId<FunId>>>,
-    ) -> BTreeSet<GlobalId> {
-        let mut modified_inv_set: BTreeSet<GlobalId> = BTreeSet::new();
-        for inv_id in inv_set {
-            if let Some(fun_id_set) = funs_that_modify_inv.get(inv_id) {
-                if fun_id_set.contains(&fun_id) {
-                    modified_inv_set.insert(*inv_id);
-                }
-            }
-        }
-        modified_inv_set
     }
 
     /// Update invariants contain "old" expressions, so it is necessary to save any types in the
