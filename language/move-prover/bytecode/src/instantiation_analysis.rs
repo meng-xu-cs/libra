@@ -26,13 +26,13 @@ use std::{
 // A named tuple for holding of the invariant relevance information
 pub struct InvariantRelevance {
     /// Global invariants covering memories that are used in this function
-    uses: BTreeSet<GlobalId>,
+    pub uses: BTreeSet<GlobalId>,
     /// Global invariants covering memories that are modified in this function
-    mods: BTreeSet<GlobalId>,
+    pub mods: BTreeSet<GlobalId>,
     /// Global invariants covering memories that are directly used in this function
-    direct_uses: BTreeSet<GlobalId>,
+    pub direct_uses: BTreeSet<GlobalId>,
     /// Global invariants covering memories that are directly modified in this function
-    direct_mods: BTreeSet<GlobalId>,
+    pub direct_mods: BTreeSet<GlobalId>,
 }
 
 impl InvariantRelevance {
