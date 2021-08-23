@@ -47,6 +47,16 @@ pub fn get_used_memory_inst<'env>(
         .used_memory
 }
 
+pub fn get_directly_used_memory_inst<'env>(
+    target: &'env FunctionTarget,
+) -> &'env SetDomain<QualifiedInstId<StructId>> {
+    &target
+        .get_annotations()
+        .get::<UsageState>()
+        .expect("Invariant violation: target not analyzed")
+        .directly_used_memory
+}
+
 pub fn get_modified_memory_inst<'env>(
     target: &'env FunctionTarget,
 ) -> &'env SetDomain<QualifiedInstId<StructId>> {
@@ -72,6 +82,7 @@ pub fn get_directly_modified_memory_inst<'env>(
 struct UsageState {
     // The memory which is directly and transitively accessed by this function.
     used_memory: SetDomain<QualifiedInstId<StructId>>,
+    directly_used_memory: SetDomain<QualifiedInstId<StructId>>,
     // The memory which is directly and transitively modified by this function.
     modified_memory: SetDomain<QualifiedInstId<StructId>>,
     directly_modified_memory: SetDomain<QualifiedInstId<StructId>>,
@@ -82,13 +93,17 @@ impl AbstractDomain for UsageState {
     fn join(&mut self, other: &Self) -> JoinResult {
         match (
             self.used_memory.join(&other.used_memory),
+            self.directly_used_memory.join(&other.directly_used_memory),
             self.modified_memory.join(&other.modified_memory),
             self.directly_modified_memory
                 .join(&other.directly_modified_memory),
         ) {
-            (JoinResult::Unchanged, JoinResult::Unchanged, JoinResult::Unchanged) => {
-                JoinResult::Unchanged
-            }
+            (
+                JoinResult::Unchanged,
+                JoinResult::Unchanged,
+                JoinResult::Unchanged,
+                JoinResult::Unchanged,
+            ) => JoinResult::Unchanged,
             _ => JoinResult::Changed,
         }
     }
@@ -165,6 +180,14 @@ impl FunctionTargetProcessor for UsageProcessor {
                     )?;
                     writeln!(
                         f,
+                        "  directly used = {{{}}}",
+                        get_directly_used_memory_inst(target)
+                            .iter()
+                            .map(|qid| env.display(qid).to_string())
+                            .join(", ")
+                    )?;
+                    writeln!(
+                        f,
                         "  modified = {{{}}}",
                         get_modified_memory_inst(target)
                             .iter()
@@ -228,10 +251,16 @@ impl<'a> TransferFunctions for MemoryUsageAnalysis<'a> {
                     state
                         .used_memory
                         .insert(mid.qualified_inst(*sid, inst.to_owned()));
+                    state
+                        .directly_used_memory
+                        .insert(mid.qualified_inst(*sid, inst.to_owned()));
                 }
                 Exists(mid, sid, inst) | GetGlobal(mid, sid, inst) => {
                     state
                         .used_memory
+                        .insert(mid.qualified_inst(*sid, inst.to_owned()));
+                    state
+                        .directly_used_memory
                         .insert(mid.qualified_inst(*sid, inst.to_owned()));
                 }
                 _ => {}
