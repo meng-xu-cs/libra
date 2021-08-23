@@ -70,6 +70,7 @@ impl FunctionTargetProcessor for GlobalInvariantInstrumentationProcessorV2 {
             let variant_data = data.fork_with_instantiation(
                 env,
                 &ty_args,
+                &[],
                 FunctionVariant::Verification(VerificationFlavor::Instantiated(i)),
             );
             global_ids.extend(plain.clone().into_iter());
@@ -183,7 +184,6 @@ impl Analyzer {
 struct Instrumenter<'a> {
     options: &'a ProverOptions,
     builder: FunctionDataBuilder<'a>,
-    _function_inst: Vec<Type>,
     used_memory: BTreeSet<QualifiedInstId<StructId>>,
     // Invariants that unify with the state used in a function instantiation
     related_invariants: BTreeSet<GlobalId>,
@@ -203,37 +203,16 @@ impl<'a> Instrumenter<'a> {
 
         let global_env = fun_env.module_env.env;
         let options = ProverOptions::get(global_env);
-        let function_inst = data.get_type_instantiation(fun_env);
+        let function_inst = &data.type_args;
         let builder = FunctionDataBuilder::new(fun_env, data);
         let used_memory: BTreeSet<_> = usage_analysis::get_used_memory_inst(&builder.get_target())
             .iter()
             .map(|mem| mem.instantiate_ref(&function_inst))
             .collect();
 
-        #[cfg(invariant_trace)]
-        {
-            let tctx = TypeDisplayContext::WithEnv {
-                env: global_env,
-                type_param_names: None,
-            };
-            println!(
-                "{}<{}>: {}",
-                builder.data.variant,
-                function_inst
-                    .iter()
-                    .map(|t| t.display(&tctx).to_string())
-                    .join(","),
-                used_memory
-                    .iter()
-                    .map(|m| global_env.display(m).to_string())
-                    .join(",")
-            );
-        }
-
         let mut instrumenter = Instrumenter {
             options: options.as_ref(),
             builder,
-            _function_inst: function_inst,
             used_memory,
             related_invariants,
             saved_from_before_instr_or_call: None,
