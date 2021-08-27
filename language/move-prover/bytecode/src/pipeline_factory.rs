@@ -8,6 +8,7 @@ use crate::{
     debug_instrumentation::DebugInstrumenter,
     eliminate_imm_refs::EliminateImmRefsProcessor,
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetProcessor},
+    global_invariant_analysis::GlobalInvariantAnalysisProcessor,
     global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
     inconsistency_check::InconsistencyCheckInstrumenter,
     livevar_analysis::LiveVarAnalysisProcessor,
@@ -20,6 +21,7 @@ use crate::{
     reaching_def_analysis::ReachingDefProcessor,
     spec_instrumentation::SpecInstrumentationProcessor,
     usage_analysis::UsageProcessor,
+    verification_analysis::VerificationAnalysisProcessor,
     verification_analysis_v2::VerificationAnalysisProcessorV2,
 };
 
@@ -36,11 +38,14 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         MemoryInstrumentationProcessor::new(),
         CleanAndOptimizeProcessor::new(),
         UsageProcessor::new(),
+        VerificationAnalysisProcessor::new(),
+        // TODO(mengxu): remove this pass once the porting is done
         VerificationAnalysisProcessorV2::new(),
         LoopAnalysisProcessor::new(),
         // spec instrumentation
         SpecInstrumentationProcessor::new(),
         DataInvariantInstrumentationProcessor::new(),
+        GlobalInvariantAnalysisProcessor::new(),
         GlobalInvariantInstrumentationProcessorV2::new(),
     ];
     if options.mutation {

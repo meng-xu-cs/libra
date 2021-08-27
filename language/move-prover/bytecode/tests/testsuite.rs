@@ -123,7 +123,7 @@ fn get_tested_transformation_pipeline(
             pipeline.add_processor(MemoryInstrumentationProcessor::new());
             pipeline.add_processor(CleanAndOptimizeProcessor::new());
             pipeline.add_processor(UsageProcessor::new());
-            pipeline.add_processor(VerificationAnalysisProcessorV2::new());
+            pipeline.add_processor(VerificationAnalysisProcessor::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             Ok(Some(pipeline))
         }
@@ -137,7 +137,7 @@ fn get_tested_transformation_pipeline(
             pipeline.add_processor(MemoryInstrumentationProcessor::new());
             pipeline.add_processor(CleanAndOptimizeProcessor::new());
             pipeline.add_processor(UsageProcessor::new());
-            pipeline.add_processor(VerificationAnalysisProcessorV2::new());
+            pipeline.add_processor(VerificationAnalysisProcessor::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             pipeline.add_processor(DataInvariantInstrumentationProcessor::new());
             Ok(Some(pipeline))
@@ -152,6 +152,8 @@ fn get_tested_transformation_pipeline(
             pipeline.add_processor(MemoryInstrumentationProcessor::new());
             pipeline.add_processor(CleanAndOptimizeProcessor::new());
             pipeline.add_processor(UsageProcessor::new());
+            pipeline.add_processor(VerificationAnalysisProcessor::new());
+            // TODO(mengxu): remove this pass once the porting is done
             pipeline.add_processor(VerificationAnalysisProcessorV2::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             pipeline.add_processor(DataInvariantInstrumentationProcessor::new());
@@ -166,7 +168,7 @@ fn get_tested_transformation_pipeline(
         "mono_analysis" => {
             let mut pipeline = FunctionTargetPipeline::default();
             pipeline.add_processor(UsageProcessor::new());
-            pipeline.add_processor(VerificationAnalysisProcessorV2::new());
+            pipeline.add_processor(VerificationAnalysisProcessor::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             pipeline.add_processor(MonoAnalysisProcessor::new());
             Ok(Some(pipeline))
