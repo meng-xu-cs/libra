@@ -72,5 +72,28 @@ pub fn default_pipeline() -> FunctionTargetPipeline {
 
 pub fn experimental_pipeline() -> FunctionTargetPipeline {
     // Enter your pipeline here
-    unimplemented!("No experimental pipeline set");
+    let processors: Vec<Box<dyn FunctionTargetProcessor>> = vec![
+        DebugInstrumenter::new(),
+        // transformation and analysis
+        EliminateImmRefsProcessor::new(),
+        MutRefInstrumenter::new(),
+        ReachingDefProcessor::new(),
+        LiveVarAnalysisProcessor::new(),
+        BorrowAnalysisProcessor::new(),
+        MemoryInstrumentationProcessor::new(),
+        CleanAndOptimizeProcessor::new(),
+        UsageProcessor::new(),
+        VerificationAnalysisProcessor::new(),
+        LoopAnalysisProcessor::new(),
+        // spec instrumentation
+        SpecInstrumentationProcessor::new(),
+        DataInvariantInstrumentationProcessor::new(),
+        GlobalInvariantAnalysisProcessor::new(),
+    ];
+
+    let mut res = FunctionTargetPipeline::default();
+    for p in processors {
+        res.add_processor(p);
+    }
+    res
 }
