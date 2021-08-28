@@ -10,6 +10,7 @@ use bytecode::{
     function_target_pipeline::{
         FunctionTargetPipeline, FunctionTargetsHolder, ProcessorResultDisplay,
     },
+    global_invariant_analysis::GlobalInvariantAnalysisProcessor,
     global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
     livevar_analysis::LiveVarAnalysisProcessor,
     memory_instrumentation::MemoryInstrumentationProcessor,
@@ -140,6 +141,22 @@ fn get_tested_transformation_pipeline(
             pipeline.add_processor(VerificationAnalysisProcessor::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             pipeline.add_processor(DataInvariantInstrumentationProcessor::new());
+            Ok(Some(pipeline))
+        }
+        "global_invariant_analysis" => {
+            let mut pipeline = FunctionTargetPipeline::default();
+            pipeline.add_processor(EliminateImmRefsProcessor::new());
+            pipeline.add_processor(MutRefInstrumenter::new());
+            pipeline.add_processor(ReachingDefProcessor::new());
+            pipeline.add_processor(LiveVarAnalysisProcessor::new());
+            pipeline.add_processor(BorrowAnalysisProcessor::new());
+            pipeline.add_processor(MemoryInstrumentationProcessor::new());
+            pipeline.add_processor(CleanAndOptimizeProcessor::new());
+            pipeline.add_processor(UsageProcessor::new());
+            pipeline.add_processor(VerificationAnalysisProcessor::new());
+            pipeline.add_processor(SpecInstrumentationProcessor::new());
+            pipeline.add_processor(DataInvariantInstrumentationProcessor::new());
+            pipeline.add_processor(GlobalInvariantAnalysisProcessor::new());
             Ok(Some(pipeline))
         }
         "global_invariant_instrumentation" => {
