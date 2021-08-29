@@ -9,6 +9,7 @@ use crate::{
     eliminate_imm_refs::EliminateImmRefsProcessor,
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetProcessor},
     global_invariant_analysis::GlobalInvariantAnalysisProcessor,
+    global_invariant_instrumentation::GlobalInvariantInstrumentationProcessor,
     global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
     inconsistency_check::InconsistencyCheckInstrumenter,
     livevar_analysis::LiveVarAnalysisProcessor,
@@ -89,6 +90,7 @@ pub fn experimental_pipeline() -> FunctionTargetPipeline {
         SpecInstrumentationProcessor::new(),
         DataInvariantInstrumentationProcessor::new(),
         GlobalInvariantAnalysisProcessor::new(),
+        GlobalInvariantInstrumentationProcessor::new(),
     ];
 
     let mut res = FunctionTargetPipeline::default();
