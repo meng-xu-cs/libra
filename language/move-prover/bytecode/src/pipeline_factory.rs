@@ -10,7 +10,6 @@ use crate::{
     function_target_pipeline::{FunctionTargetPipeline, FunctionTargetProcessor},
     global_invariant_analysis::GlobalInvariantAnalysisProcessor,
     global_invariant_instrumentation::GlobalInvariantInstrumentationProcessor,
-    global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
     inconsistency_check::InconsistencyCheckInstrumenter,
     livevar_analysis::LiveVarAnalysisProcessor,
     loop_analysis::LoopAnalysisProcessor,
@@ -23,7 +22,6 @@ use crate::{
     spec_instrumentation::SpecInstrumentationProcessor,
     usage_analysis::UsageProcessor,
     verification_analysis::VerificationAnalysisProcessor,
-    verification_analysis_v2::VerificationAnalysisProcessorV2,
 };
 
 pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetPipeline {
@@ -40,20 +38,28 @@ pub fn default_pipeline_with_options(options: &ProverOptions) -> FunctionTargetP
         CleanAndOptimizeProcessor::new(),
         UsageProcessor::new(),
         VerificationAnalysisProcessor::new(),
-        // TODO(mengxu): remove this pass once the porting is done
-        VerificationAnalysisProcessorV2::new(),
         LoopAnalysisProcessor::new(),
         // spec instrumentation
         SpecInstrumentationProcessor::new(),
         DataInvariantInstrumentationProcessor::new(),
         GlobalInvariantAnalysisProcessor::new(),
-        GlobalInvariantInstrumentationProcessorV2::new(),
+        GlobalInvariantInstrumentationProcessor::new(),
     ];
+
     if options.mutation {
-        processors.push(MutationTester::new()); // pass which may do nothing
+        // pass which may do nothing
+        processors.push(MutationTester::new());
     }
 
-    processors.push(MonoAnalysisProcessor::new());
+    // run monomorphization when the backend does not have mono support.else
+    //
+    // TODO: not running the MonoAnalysisProcessor does not break the
+    // transformation pipeline but will output a bpl file that is uncompilable
+    // in Boogie. Solving this issue will require some deep understanding of
+    // the mono backend on both sides, which we defer to a later stage.
+    if !options.boogie_poly {
+        processors.push(MonoAnalysisProcessor::new());
+    }
 
     // inconsistency check instrumentation should be the last one in the pipeline
     if options.check_inconsistency {
@@ -91,6 +97,8 @@ pub fn experimental_pipeline() -> FunctionTargetPipeline {
         DataInvariantInstrumentationProcessor::new(),
         GlobalInvariantAnalysisProcessor::new(),
         GlobalInvariantInstrumentationProcessor::new(),
+        // optimization
+        MonoAnalysisProcessor::new(),
     ];
 
     let mut res = FunctionTargetPipeline::default();
