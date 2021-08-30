@@ -11,7 +11,7 @@ use bytecode::{
         FunctionTargetPipeline, FunctionTargetsHolder, ProcessorResultDisplay,
     },
     global_invariant_analysis::GlobalInvariantAnalysisProcessor,
-    global_invariant_instrumentation_v2::GlobalInvariantInstrumentationProcessorV2,
+    global_invariant_instrumentation::GlobalInvariantInstrumentationProcessor,
     livevar_analysis::LiveVarAnalysisProcessor,
     memory_instrumentation::MemoryInstrumentationProcessor,
     mono_analysis::MonoAnalysisProcessor,
@@ -23,7 +23,6 @@ use bytecode::{
     spec_instrumentation::SpecInstrumentationProcessor,
     usage_analysis::UsageProcessor,
     verification_analysis::VerificationAnalysisProcessor,
-    verification_analysis_v2::VerificationAnalysisProcessorV2,
 };
 use codespan_reporting::{diagnostic::Severity, term::termcolor::Buffer};
 use move_command_line_common::testing::EXP_EXT;
@@ -170,11 +169,10 @@ fn get_tested_transformation_pipeline(
             pipeline.add_processor(CleanAndOptimizeProcessor::new());
             pipeline.add_processor(UsageProcessor::new());
             pipeline.add_processor(VerificationAnalysisProcessor::new());
-            // TODO(mengxu): remove this pass once the porting is done
-            pipeline.add_processor(VerificationAnalysisProcessorV2::new());
             pipeline.add_processor(SpecInstrumentationProcessor::new());
             pipeline.add_processor(DataInvariantInstrumentationProcessor::new());
-            pipeline.add_processor(GlobalInvariantInstrumentationProcessorV2::new());
+            pipeline.add_processor(GlobalInvariantAnalysisProcessor::new());
+            pipeline.add_processor(GlobalInvariantInstrumentationProcessor::new());
             Ok(Some(pipeline))
         }
         "read_write_set" => {
