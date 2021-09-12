@@ -16,6 +16,7 @@ a given time period.
 -  [Function `update_withdrawal_limits`](#0x1_AccountLimits_update_withdrawal_limits)
 -  [Function `publish_window`](#0x1_AccountLimits_publish_window)
 -  [Function `publish_unrestricted_limits`](#0x1_AccountLimits_publish_unrestricted_limits)
+-  [Function `publish_unrestricted_limits_for_testing`](#0x1_AccountLimits_publish_unrestricted_limits_for_testing)
 -  [Function `update_limits_definition`](#0x1_AccountLimits_update_limits_definition)
 -  [Function `update_window_info`](#0x1_AccountLimits_update_window_info)
 -  [Function `reset_window`](#0x1_AccountLimits_reset_window)
@@ -595,6 +596,42 @@ resource once it's published.
     publish_account: signer;
     <b>ensures</b> <b>exists</b>&lt;<a href="AccountLimits.md#0x1_AccountLimits_LimitsDefinition">LimitsDefinition</a>&lt;CoinType&gt;&gt;(<a href="../../../../../../move-stdlib/docs/Signer.md#0x1_Signer_spec_address_of">Signer::spec_address_of</a>(publish_account));
 }
+</code></pre>
+
+
+
+</details>
+
+<a name="0x1_AccountLimits_publish_unrestricted_limits_for_testing"></a>
+
+## Function `publish_unrestricted_limits_for_testing`
+
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="AccountLimits.md#0x1_AccountLimits_publish_unrestricted_limits_for_testing">publish_unrestricted_limits_for_testing</a>&lt;CoinType&gt;(publish_account: &signer)
+</code></pre>
+
+
+
+<details>
+<summary>Implementation</summary>
+
+
+<pre><code><b>public</b> <b>fun</b> <a href="AccountLimits.md#0x1_AccountLimits_publish_unrestricted_limits_for_testing">publish_unrestricted_limits_for_testing</a>&lt;CoinType&gt;(publish_account: &signer) {
+    <a href="AccountLimits.md#0x1_AccountLimits_publish_unrestricted_limits">publish_unrestricted_limits</a>&lt;CoinType&gt;(publish_account);
+}
+</code></pre>
+
+
+
+</details>
+
+<details>
+<summary>Specification</summary>
+
+
+
+<pre><code><b>pragma</b> verify = <b>false</b>;
 </code></pre>
 
 

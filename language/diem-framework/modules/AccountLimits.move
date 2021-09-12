@@ -215,6 +215,16 @@ module DiemFramework::AccountLimits {
         ensures exists<LimitsDefinition<CoinType>>(Signer::spec_address_of(publish_account));
     }
 
+    // #[test_only]
+    // TODO: remove this comment when the relevant tests in functional and language-e2e testsuites
+    // are ported to the unit testing framework
+    public fun publish_unrestricted_limits_for_testing<CoinType>(publish_account: &signer) {
+        publish_unrestricted_limits<CoinType>(publish_account);
+    }
+    spec publish_unrestricted_limits_for_testing {
+        pragma verify = false;
+    }
+
     /// Updates the `LimitsDefinition<CoinType>` resource at `limit_address`.
     /// If any of the field arguments is `0` the corresponding field is not updated.
     public fun update_limits_definition<CoinType>(
