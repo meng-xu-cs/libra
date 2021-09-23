@@ -104,6 +104,10 @@ module DiemFramework::AccountCreationScripts {
         // 0.3
         // !AccountFreezing::account_is_frozen(parent_vasp)
 
+        //
+        // Aborts_If
+        //
+
         /// **Validation of arguments**
         aborts_if
             child_address == @VMReserved
@@ -164,11 +168,41 @@ module DiemFramework::AccountCreationScripts {
             global<DiemAccount::Balance<CoinType>>(parent_withdraw_addr).coin.value < child_initial_balance
         ) with Errors::LIMIT_EXCEEDED;
 
-        include DiemAccount::CreateChildVASPAccountEnsures<CoinType>{
-            parent_addr: parent_addr,
-            child_addr: child_address,
-        };
+        //
+        // Ensures
+        //
+
+        // 1
+        // include DiemAccount::CreateChildVASPAccountEnsures<CoinType>{
+        //     parent_addr: parent_addr,
+        //     child_addr: child_address,
+        // };
+
+        //// 1.1
+        //// include VASP::PublishChildVASPEnsures{child_addr: child_address};
+
+        ////// 1.1.1
+        ensures global<VASP::ParentVASP>(parent_addr).num_children ==
+            old(global<VASP::ParentVASP>(parent_addr).num_children) + 1;
+
+        ////// 1.1.2
+        ensures exists<VASP::ChildVASP>(child_address);
+
+        ////// 1.1.3
+        ensures global<VASP::ChildVASP>(child_address).parent_vasp_addr == parent_addr;
+
+        //// 1.2
+        ensures exists<DiemAccount::DiemAccount>(child_address);
+
+        //// 1.3
+        ensures
+            exists<Roles::RoleId>(child_address) &&
+            global<Roles::RoleId>(child_address).role_id == Roles::CHILD_VASP_ROLE_ID;
+
+        // 2
         ensures DiemAccount::balance<CoinType>(child_address) == child_initial_balance;
+
+        // 3
         ensures DiemAccount::balance<CoinType>(parent_addr)
             == old(DiemAccount::balance<CoinType>(parent_addr)) - child_initial_balance;
 
