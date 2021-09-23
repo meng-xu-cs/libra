@@ -87,31 +87,302 @@ module DiemFramework::AccountCreationScripts {
     spec create_child_vasp_account {
         use Std::Signer;
         use Std::Errors;
+        use Std::FixedPoint32;
+        use Std::Option;
+        use DiemFramework::AccountFreezing;
+        use DiemFramework::Diem;
         use DiemFramework::DualAttestation;
         use DiemFramework::Roles;
+        use DiemFramework::VASP;
+        use DiemFramework::XDX::XDX;
+        use DiemFramework::XUS::XUS;
 
-        include DiemAccount::TransactionChecks{sender: parent_vasp}; // properties checked by the prologue.
         let parent_addr = Signer::spec_address_of(parent_vasp);
         let parent_cap = DiemAccount::spec_get_withdraw_cap(parent_addr);
-        include DiemAccount::CreateChildVASPAccountAbortsIf<CoinType>{
-            parent: parent_vasp, new_account_address: child_address};
+
+        // 0
+        include DiemAccount::TransactionChecks{sender: parent_vasp}; // properties checked by the prologue.
+        // 0.1
+        // DiemTimestamp::is_operating()
+        // 0.2
+        // exists<DiemAccount::DiemAccount>(parent_addr)
+        // 0.3
+        // !AccountFreezing::account_is_frozen(parent_vasp)
+
+        // 1
+        // include DiemAccount::CreateChildVASPAccountAbortsIf<CoinType>{
+        //    parent: parent_vasp, new_account_address: child_address};
+
+        //// 1.1
+        //// include DiemTimestamp::AbortsIfNotOperating;
+        //// --> redundant (trivial by 0.1)
+
+        //// 1.2
+        //// include Roles::AbortsIfNotParentVasp{account: parent_vasp};
+        aborts_if !exists<Roles::RoleId>(parent_addr) with Errors::NOT_PUBLISHED;
+        aborts_if global<Roles::RoleId>(parent_addr).role_id != Roles::PARENT_VASP_ROLE_ID with Errors::REQUIRES_ROLE;
+
+        //// 1.3
+        aborts_if exists<Roles::RoleId>(child_address) with Errors::ALREADY_PUBLISHED;
+
+        //// 1.4
+        //// include VASP::PublishChildVASPAbortsIf{parent: parent_vasp, child_addr: child_address};
+
+        ////// 1.4.1
+        ////// include Roles::AbortsIfNotParentVasp{account: parent_vasp};
+        ////// --> same as 1.2
+
+        ////// 1.4.2
+        aborts_if exists<VASP::ParentVASP>(child_address) || exists<VASP::ChildVASP>(child_address) with Errors::ALREADY_PUBLISHED;
+
+        ////// 1.4.3
+        aborts_if !exists<VASP::ParentVASP>(parent_addr) with Errors::INVALID_ARGUMENT;
+
+        ////// 1.4.4
+        aborts_if global<VASP::ParentVASP>(parent_addr).num_children + 1 > VASP::MAX_CHILD_ACCOUNTS with Errors::LIMIT_EXCEEDED;
+        ////// can be combined with 1.4.3
+
+        //// 1.5
+        //// include DiemAccount::AddCurrencyForAccountAbortsIf<CoinType>{addr: child_address};
+
+        ////// 1.5.1
+        ////// include Diem::AbortsIfNoCurrency<CoinType>;
+        aborts_if !exists<Diem::CurrencyInfo<CoinType>>(@CurrencyInfo) with Errors::NOT_PUBLISHED;
+
+        ////// 1.5.2
+        ////// include add_all_currencies && !exists<DiemAccount::Balance<XUS>>(child_address)
+        //////     ==> Diem::AbortsIfNoCurrency<XUS>;
+        aborts_if (
+            add_all_currencies &&
+            !exists<DiemAccount::Balance<XUS>>(child_address) &&
+            !exists<Diem::CurrencyInfo<XUS>>(@CurrencyInfo)
+        ) with Errors::NOT_PUBLISHED;
+        ////// --> this is difficult to understand
+
+        ////// 1.5.3
+        ////// include add_all_currencies && !exists<DiemAccount::Balance<XDX>>(child_address)
+        //////     ==> Diem::AbortsIfNoCurrency<XDX>;
+        aborts_if (
+            add_all_currencies &&
+            !exists<DiemAccount::Balance<XDX>>(child_address) &&
+            !exists<Diem::CurrencyInfo<XDX>>(@CurrencyInfo)
+        ) with Errors::NOT_PUBLISHED;
+        ////// --> this is difficult to understand
+
+        //// 1.6
+        //// include DiemAccount::MakeAccountAbortsIf{addr: child_address};
+
+        ////// 1.6.1
+        aborts_if child_address == @VMReserved with Errors::INVALID_ARGUMENT;
+        ////// 1.6.2
+        aborts_if child_address == @DiemFramework with Errors::INVALID_ARGUMENT;
+
+        ////// 1.6.3
+        aborts_if exists<AccountFreezing::FreezingBit>(child_address) with Errors::ALREADY_PUBLISHED;
+
+        ////// 1.6.4
+        ////// aborts_if DiemTimestamp::is_genesis()
+        //////     && !exists<DiemAccount::AccountOperationsCapability>(@DiemRoot)
+        //////     with Errors::NOT_PUBLISHED;
+        ////// --> simplified from 0.1
+
+        ////// 1.6.4.1
+        aborts_if !exists<DiemAccount::AccountOperationsCapability>(@DiemRoot) with Errors::NOT_PUBLISHED;
+
+        ////// 1.6.5
+        ////// include DiemAccount::CreateAuthenticationKeyAbortsIf;
+
+        //////// 1.6.5.1
+        aborts_if 16 + len(auth_key_prefix) != 32 with Errors::INVALID_ARGUMENT;
+
+        // 2
         aborts_if child_initial_balance > max_u64() with Errors::LIMIT_EXCEEDED;
-        include (child_initial_balance > 0) ==>
-            DiemAccount::ExtractWithdrawCapAbortsIf{sender_addr: parent_addr};
-        include (child_initial_balance > 0) ==> DualAttestation::AssertPaymentOkAbortsIf<CoinType>{
-            payer: parent_addr,
-            payee: child_address,
-            metadata: x"",
-            metadata_signature: x"",
-            value: child_initial_balance
+
+        // 3
+        // include (child_initial_balance > 0) ==>
+        //    DiemAccount::ExtractWithdrawCapAbortsIf{sender_addr: parent_addr};
+
+        //// 3.1
+        aborts_if
+            child_initial_balance > 0 &&
+            !exists<DiemAccount::DiemAccount>(parent_addr)
+        with Errors::NOT_PUBLISHED;
+
+        //// 3.2
+        aborts_if
+            child_initial_balance > 0 &&
+            exists<DiemAccount::DiemAccount>(parent_addr) &&
+            Option::is_none(global<DiemAccount::DiemAccount>(parent_addr).withdraw_capability)
+        with Errors::INVALID_STATE;
+        //// --> can be merged with 3.1
+
+        // 4
+        // include (child_initial_balance > 0) ==> DualAttestation::AssertPaymentOkAbortsIf<CoinType>{
+        //     payer: parent_addr,
+        //     payee: child_address,
+        //     metadata: x"",
+        //     metadata_signature: x"",
+        //     value: child_initial_balance
+        // };
+
+        //// 4.1
+        //// include (
+        ////     child_initial_balance > 0
+        //// ) ==> DualAttestation::DualAttestationRequiredAbortsIf<CoinType>{deposit_value: child_initial_balance};
+
+        ////// 4.1.1
+        ////// include (
+        //////     child_initial_balance > 0
+        ////// ) ==> Diem::ApproxXdmForValueAbortsIf<CoinType>{from_value: child_initial_balance};
+
+        //////// 4.1.1.1
+        //////// include child_initial_balance > 0 ==> Diem::AbortsIfNoCurrency<CoinType>;
+        //////// --> duplicated
+
+        //////// 4.1.1.2
+        include (
+             child_initial_balance > 0
+        ) ==> FixedPoint32::MultiplyAbortsIf {
+            val: child_initial_balance,
+            multiplier: global<Diem::CurrencyInfo<CoinType>>(@CurrencyInfo).to_xdx_exchange_rate,
         };
-        include (child_initial_balance) > 0 ==>
-            DiemAccount::PayFromAbortsIfRestricted<CoinType>{
-                cap: parent_cap,
-                payee: child_address,
-                amount: child_initial_balance,
-                metadata: x"",
-            };
+
+        ////// 4.1.2
+        aborts_if !exists<DualAttestation::Limit>(@DiemRoot) with Errors::NOT_PUBLISHED;
+
+        //// 4.2
+        //// include (
+        ////     child_initial_balance > 0 &&
+        ////     DualAttestation::spec_dual_attestation_required<CoinType>(
+        ////         parent_addr,
+        ////         child_address,
+        ////         child_initial_balance,
+        ////     )
+        //// ) ==> DualAttestation::AssertSignatureValidAbortsIf{
+        ////     payer: parent_addr,
+        ////     payee: child_address,
+        ////     metadata: x"",
+        ////     metadata_signature: x"",
+        ////     deposit_value: child_initial_balance
+        //// };
+
+        ////// 4.2.1
+        ////// include (
+        //////     child_initial_balance > 0 &&
+        //////     Diem::spec_approx_xdx_for_value<CoinType>(child_initial_balance) >= DualAttestation::spec_get_cur_microdiem_limit() &&
+        //////     parent_addr != child_address &&
+        //////     DualAttestation::spec_is_inter_vasp(parent_addr, child_address)
+        ////// ) ==> DualAttestation::AssertSignatureValidAbortsIf{
+        //////     payer: parent_addr,
+        //////     payee: child_address,
+        //////     metadata: x"",
+        //////     metadata_signature: x"",
+        //////     deposit_value: child_initial_balance
+        ////// };
+        ////// --> antecedent does not hold
+        //////     DualAttestation::spec_is_inter_vasp(parent_addr, child_address)
+
+        // 5
+        // include (child_initial_balance) > 0 ==>
+        //    DiemAccount::PayFromAbortsIfRestricted<CoinType>{
+        //        cap: parent_cap,
+        //        payee: child_address,
+        //        amount: child_initial_balance,
+        //        metadata: x"",
+        //    };
+
+        //// 5.1
+        //// include child_initial_balance > 0 ==>
+        ////     DiemAccount::DepositAbortsIfRestricted<CoinType>{
+        ////         payer: parent_cap.account_address,
+        ////         payee: child_address,
+        ////         amount: child_initial_balance,
+        ////         metadata: x"",
+        ////     };
+
+        ////// 5.1.1
+        ////// include child_initial_balance > 0 ==> DiemTimestamp::AbortsIfNotOperating;
+        ////// --> duplicated
+
+        ////// 5.1.2
+        ////// aborts_if child_initial_balance > 0 && child_initial_balance == 0 with Errors::INVALID_ARGUMENT;
+        ////// --> trivial
+
+        ////// 5.1.3
+        ////// include
+        //////    (
+        //////        child_initial_balance > 0 &&
+        //////        DiemAccount::spec_should_track_limits_for_account<CoinType>(
+        //////            parent_cap.account_address,
+        //////            child_address,
+        //////            false,
+        //////        )
+        //////    ) ==>
+        //////    AccountLimits::UpdateDepositLimitsAbortsIf<CoinType> {
+        //////        addr: VASP::spec_parent_address(child_address),
+        //////        amount: child_initial_balance,
+        //////    };
+
+        //////// 5.1.3.1
+        //////// include
+        ////////     (
+        ////////         child_initial_balance > 0 &&
+        ////////         DiemAccount::spec_has_published_account_limits<CoinType>(child_address) &&
+        ////////         (exists<VASP::ParentVASP>(child_address) || exists<VASP::ChildVASP>(child_address)) &&
+        ////////         DiemAccount::spec_should_track_limits_for_account<CoinType>(
+        ////////             parent_cap.account_address, child_address, false
+        ////////         )
+        ////////     ) ==>
+        ////////     AccountLimits::UpdateDepositLimitsAbortsIf<CoinType> {
+        ////////         addr: VASP::spec_parent_address(child_address),
+        ////////         amount: child_initial_balance,
+        ////////     };
+        //////// --> antecedent does not hold
+
+        //// 5.1.4
+        //// include child_initial_balance > 0 ==> Diem::AbortsIfNoCurrency<CoinType>;
+        //// --> duplicated
+
+        //// 5.2
+        //// include child_initial_balance > 0 ==>
+        ////     DiemAccount::WithdrawFromBalanceNoLimitsAbortsIf<CoinType>{
+        ////         payer: parent_cap.account_address,
+        ////         payee: child_address,
+        ////         balance: global<DiemAccount::Balance<CoinType>>(parent_cap.account_address),
+        ////         amount: child_initial_balance,
+        ////     };
+
+        ////// 5.2.1
+        ////// include child_initial_balance > 0 ==> DiemTimestamp::AbortsIfNotOperating;
+        ////// --> duplicated
+
+        ////// 5.2.2
+        ////// include child_initial_balance > 0 ==>
+        //////     AccountFreezing::AbortsIfFrozen{account: parent_cap.account_address};
+
+        //////// 5.2.2.1
+        aborts_if (
+            child_initial_balance > 0 &&
+            exists<AccountFreezing::FreezingBit>(parent_cap.account_address) &&
+            global<AccountFreezing::FreezingBit>(parent_cap.account_address).is_frozen
+        ) with Errors::INVALID_STATE;
+
+        ////// 5.2.3
+        aborts_if (
+            child_initial_balance > 0 &&
+            global<DiemAccount::Balance<CoinType>>(parent_cap.account_address).coin.value < child_initial_balance
+        ) with Errors::LIMIT_EXCEEDED;
+
+        //// 5.3
+        aborts_if
+            child_initial_balance > 0 &&
+            !exists<DiemAccount::Balance<CoinType>>(parent_cap.account_address)
+        with Errors::NOT_PUBLISHED;
+
+        // 6
+        // include Roles::AbortsIfNotParentVasp{account: parent_vasp};
+        // --> duplicated
+
         include DiemAccount::CreateChildVASPAccountEnsures<CoinType>{
             parent_addr: parent_addr,
             child_addr: child_address,
