@@ -172,39 +172,28 @@ module DiemFramework::AccountCreationScripts {
         // Ensures
         //
 
-        // 1
-        // include DiemAccount::CreateChildVASPAccountEnsures<CoinType>{
-        //     parent_addr: parent_addr,
-        //     child_addr: child_address,
-        // };
-
-        //// 1.1
-        //// include VASP::PublishChildVASPEnsures{child_addr: child_address};
-
-        ////// 1.1.1
+        /// **Regulation**
+        /// Child VASP is created and linked to the parent VASP
         ensures global<VASP::ParentVASP>(parent_addr).num_children ==
             old(global<VASP::ParentVASP>(parent_addr).num_children) + 1;
 
-        ////// 1.1.2
         ensures exists<VASP::ChildVASP>(child_address);
-
-        ////// 1.1.3
         ensures global<VASP::ChildVASP>(child_address).parent_vasp_addr == parent_addr;
 
-        //// 1.2
+        ensures exists<Roles::RoleId>(child_address);
+        ensures global<Roles::RoleId>(child_address).role_id == Roles::CHILD_VASP_ROLE_ID;
+
         ensures exists<DiemAccount::DiemAccount>(child_address);
 
-        //// 1.3
-        ensures
-            exists<Roles::RoleId>(child_address) &&
-            global<Roles::RoleId>(child_address).role_id == Roles::CHILD_VASP_ROLE_ID;
+        /// **Regulation**
+        /// Child VASP is funded from parent VASP
+        ensures global<DiemAccount::Balance<CoinType>>(child_address).coin.value == child_initial_balance;
+        ensures global<DiemAccount::Balance<CoinType>>(parent_addr).coin.value ==
+            old(global<DiemAccount::Balance<CoinType>>(parent_addr).coin.value) - child_initial_balance;
 
-        // 2
-        ensures DiemAccount::balance<CoinType>(child_address) == child_initial_balance;
-
-        // 3
-        ensures DiemAccount::balance<CoinType>(parent_addr)
-            == old(DiemAccount::balance<CoinType>(parent_addr)) - child_initial_balance;
+        //
+        // Others
+        //
 
         aborts_with [check]
             Errors::REQUIRES_ROLE,
