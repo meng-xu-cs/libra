@@ -18,6 +18,8 @@ use move_model::{
 };
 use move_prover::{cli::Options as CliOptions, generate_boogie, verify_boogie};
 
+use crate::{model_pass::ModelPass, model_pass_inlining};
+
 /// Options passed into the workflow pipeline.
 #[derive(StructOpt, Clone)]
 pub struct WorkflowOptions {
@@ -46,11 +48,12 @@ pub struct WorkflowOptions {
 }
 
 pub(crate) fn prepare(options: &WorkflowOptions) -> Result<(GlobalEnv, FunctionTargetsHolder)> {
-    prepare_with_override(options, BTreeMap::new())
+    prepare_with_override(options, &[], BTreeMap::new())
 }
 
 pub(crate) fn prepare_with_override(
     options: &WorkflowOptions,
+    model_pipeline: &[ModelPass],
     spec_override: BTreeMap<QualifiedId<FunId>, Spec>,
 ) -> Result<(GlobalEnv, FunctionTargetsHolder)> {
     // build mapping for named addresses
@@ -80,6 +83,13 @@ pub(crate) fn prepare_with_override(
     )?;
     if env.has_errors() {
         return Err(anyhow!("Error in model building"));
+    }
+
+    // run the pipeline of model passes
+    for pass in model_pipeline {
+        match pass {
+            ModelPass::Inline => model_pass_inlining::run_inlining(&mut env)?,
+        };
     }
 
     // override the spec for functions (if requested)
@@ -117,7 +127,7 @@ pub(crate) fn prepare_with_override(
         return Err(anyhow!("Error in bytecode transformation"));
     }
 
-    // return the GlobalEnv
+    // return the GlobalEnv and the processed bytecode (in FunctionTargetsHolder)
     Ok((env, targets))
 }
 

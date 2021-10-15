@@ -11,13 +11,7 @@ use move_model::{
     symbol::Symbol,
 };
 
-use crate::workflow::WorkflowOptions;
-
-pub(crate) fn inline_all_exp_in_spec(
-    _options: &WorkflowOptions,
-    target: FunctionTarget,
-    spec: Spec,
-) -> Result<Spec> {
+pub(crate) fn inline_all_exp_in_spec(target: FunctionTarget, spec: Spec) -> Result<Spec> {
     let env = target.global_env();
     let inliner = ExpInliner { env };
 
