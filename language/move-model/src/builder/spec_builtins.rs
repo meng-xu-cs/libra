@@ -273,29 +273,6 @@ pub(crate) fn declare_spec_builtins(trans: &mut ModelBuilder<'_>) {
                 result_type: param_t.clone(),
             },
         );
-        // TODO(emmazzz): declaring these as builtins will allow users to
-        // use borrow_global and borrow_global_mut in specs. Later we should
-        // map them to `global` instead.
-        trans.define_spec_fun(
-            trans.builtin_qualified_symbol("borrow_global"),
-            SpecFunEntry {
-                loc: loc.clone(),
-                oper: Operation::Global(None),
-                type_params: vec![param_t.clone()],
-                arg_types: vec![address_t.clone()],
-                result_type: param_t.clone(),
-            },
-        );
-        trans.define_spec_fun(
-            trans.builtin_qualified_symbol("borrow_global_mut"),
-            SpecFunEntry {
-                loc: loc.clone(),
-                oper: Operation::Global(None),
-                type_params: vec![param_t.clone()],
-                arg_types: vec![address_t.clone()],
-                result_type: param_t.clone(),
-            },
-        );
         trans.define_spec_fun(
             trans.builtin_qualified_symbol("exists"),
             SpecFunEntry {
