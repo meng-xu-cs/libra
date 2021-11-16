@@ -449,6 +449,123 @@ impl ExpData {
         e1 == e2
     }
 
+    pub fn exp_ast_eq(env: &GlobalEnv, e1: &Exp, e2: &Exp) -> bool {
+        if Self::ptr_eq(e1, e2) {
+            return true;
+        }
+
+        // check node
+        if !Self::node_ast_eq(env, e1.node_id(), e2.node_id()) {
+            return false;
+        }
+
+        // check exp
+        let e1 = e1.as_ref();
+        let e2 = e2.as_ref();
+        match e1 {
+            Self::Invalid(_) => matches!(e2, Self::Invalid(_)),
+            Self::Value(_, v1) => matches!(e2, Self::Value(_, v2) if v1 == v2),
+            Self::LocalVar(_, s1) => matches!(e2, Self::LocalVar(_, s2) if s1 == s2),
+            Self::Temporary(_, t1) => matches!(e2, Self::Temporary(_, t2) if t1 == t2),
+            Self::Call(_, op1, args1) => {
+                matches!(e2, Self::Call(_, op2, args2)
+                    if op1 == op2 && Self::exp_ast_eq_vec(env, args1, args2))
+            }
+            Self::Invoke(_, e1, args1) => {
+                matches!(e2, Self::Invoke(_, e2, args2)
+                    if Self::exp_ast_eq(env, e1, e2) && Self::exp_ast_eq_vec(env, args1, args2))
+            }
+            Self::Lambda(_, vars1, e1) => {
+                matches!(e2, Self::Lambda(_, vars2, e2)
+                    if Self::decl_ast_eq_vec(env, vars1, vars2) && Self::exp_ast_eq(env, e1, e2))
+            }
+            Self::Quant(_, kind1, ranges1, triggers1, where1, body1) => match e2 {
+                Self::Quant(_, kind2, ranges2, triggers2, where2, body2) => {
+                    if kind1 != kind2 {
+                        return false;
+                    }
+                    if ranges1.len() != ranges2.len() {
+                        return false;
+                    }
+                    let range_eq = ranges1.iter().zip(ranges2).all(|((v1, r1), (v2, r2))| {
+                        Self::decl_ast_eq(env, v1, v2) && Self::exp_ast_eq(env, r1, r2)
+                    });
+                    if !range_eq {
+                        return false;
+                    }
+                    if triggers1.len() != triggers2.len() {
+                        return false;
+                    }
+                    let trigger_eq = triggers1
+                        .iter()
+                        .zip(triggers2)
+                        .all(|(t1, t2)| Self::exp_ast_eq_vec(env, t1, t2));
+                    if !trigger_eq {
+                        return false;
+                    }
+                    let where_eq = match (where1, where2) {
+                        (None, None) => true,
+                        (Some(w1), Some(w2)) => Self::exp_ast_eq(env, w1, w2),
+                        _ => false,
+                    };
+                    if !where_eq {
+                        return false;
+                    }
+                    Self::exp_ast_eq(env, body1, body2)
+                }
+                _ => false,
+            },
+            Self::Block(_, vars1, body1) => {
+                matches!(
+                    e2, Self::Block(_, vars2, body2)
+                    if Self::decl_ast_eq_vec(env, vars1, vars2) && Self::exp_ast_eq(env, body1, body2)
+                )
+            }
+            Self::IfElse(_, cond1, then1, else1) => {
+                matches!(
+                    e2, Self::IfElse(_, cond2, then2, else2)
+                    if Self::exp_ast_eq(env, cond1, cond2)
+                        && Self::exp_ast_eq(env, then1, then2)
+                        && Self::exp_ast_eq(env, else1, else2)
+                )
+            }
+        }
+    }
+
+    fn exp_ast_eq_vec(env: &GlobalEnv, e1_vec: &[Exp], e2_vec: &[Exp]) -> bool {
+        (e1_vec.len() == e2_vec.len())
+            && (e1_vec
+                .iter()
+                .zip(e2_vec)
+                .all(|(e1, e2)| Self::exp_ast_eq(env, e1, e2)))
+    }
+
+    fn node_ast_eq(env: &GlobalEnv, n1: NodeId, n2: NodeId) -> bool {
+        (n1 == n2)
+            || (env.get_node_loc(n1) == env.get_node_loc(n2)
+                && env.get_node_type(n1) == env.get_node_type(n2)
+                && env.get_node_instantiation_opt(n1) == env.get_node_instantiation_opt(n2))
+    }
+
+    fn decl_ast_eq(env: &GlobalEnv, v1: &LocalVarDecl, v2: &LocalVarDecl) -> bool {
+        (v1 == v2)
+            || (Self::node_ast_eq(env, v1.id, v2.id)
+                && v1.name == v2.name
+                && match (&v1.binding, &v2.binding) {
+                    (None, None) => true,
+                    (Some(e1), Some(e2)) => Self::exp_ast_eq(env, e1, e2),
+                    _ => false,
+                })
+    }
+
+    fn decl_ast_eq_vec(env: &GlobalEnv, v1_vec: &[LocalVarDecl], v2_vec: &[LocalVarDecl]) -> bool {
+        (v1_vec.len() == v2_vec.len())
+            && (v1_vec
+                .iter()
+                .zip(v2_vec)
+                .all(|(v1, v2)| Self::decl_ast_eq(env, v1, v2)))
+    }
+
     pub fn node_id(&self) -> NodeId {
         use ExpData::*;
         match self {

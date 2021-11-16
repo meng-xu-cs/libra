@@ -57,7 +57,7 @@ pub struct SpecTranslator<'env> {
     /// choice function. If an expression is duplicated and then later specialized by a type
     /// instantiation, it will have a different node id, but again the same instantiations
     /// map to the same node id, which is the desired semantics.
-    lifted_choice_infos: Rc<RefCell<HashMap<ExpData, LiftedChoiceInfo>>>,
+    lifted_choice_infos: Rc<RefCell<HashMap<Exp, LiftedChoiceInfo>>>,
 }
 
 /// A struct which contains information about a lifted choice expression (like `some x:int: p(x)`).
@@ -1190,7 +1190,8 @@ impl<'env> SpecTranslator<'env> {
             vec![],
             None,
             body.clone(),
-        );
+        )
+        .into_exp();
         let some_var = range.0.name;
         let free_vars = range_and_body
             .free_vars(self.env)
@@ -1214,20 +1215,28 @@ impl<'env> SpecTranslator<'env> {
         // sites. We want that the choice consistently returns the same value in each case;
         // we can only guarantee this if we use the same uninterpreted function for each instance.
         let mut choice_infos = self.lifted_choice_infos.borrow_mut();
-        let choice_count = choice_infos.len();
-        let info = choice_infos
-            .entry(range_and_body)
-            .or_insert_with(|| LiftedChoiceInfo {
-                id: choice_count,
-                node_id,
-                kind,
-                free_vars: free_vars.clone(),
-                used_temps: used_temps.clone(),
-                used_memory: used_memory.clone(),
-                var: some_var,
-                range: range.1.clone(),
-                condition: body.clone(),
-            });
+        let existing = choice_infos
+            .keys()
+            .find(|e| ExpData::exp_ast_eq(self.env, e, &range_and_body));
+        let info = match existing {
+            Some(e) => choice_infos.get(e).unwrap(),
+            None => {
+                let choice_count = choice_infos.len();
+                let info = LiftedChoiceInfo {
+                    id: choice_count,
+                    node_id,
+                    kind,
+                    free_vars: free_vars.clone(),
+                    used_temps: used_temps.clone(),
+                    used_memory: used_memory.clone(),
+                    var: some_var,
+                    range: range.1.clone(),
+                    condition: body.clone(),
+                };
+                choice_infos.entry(range_and_body).or_insert(info)
+            }
+        };
+
         let fun_name = boogie_choice_fun_name(info.id);
 
         // Construct the arguments. Notice that those might be different for each call of
