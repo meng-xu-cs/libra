@@ -12,7 +12,7 @@ BUILD_MODE=--release
 BASE=$(git rev-parse --show-toplevel)
 echo "*************** [check-pr] Assuming diem root at $BASE"
 
-while getopts "hcxtdgmea" opt; do
+while getopts "hcxtdgmnea" opt; do
   case $opt in
     h)
       cat <<EOF
@@ -30,6 +30,8 @@ Flags:
     -g   Run the Diem git checks script (whitespace check). This works
          only for committed clients.
     -m   Run the Move unit and verification tests.
+    -n   Like -m, but also run with extended verification configurations
+         (e.g., modular verification, inconsistency, etc)
     -e   Run the Move e2e tests
     -a   Run all of the above
 EOF
@@ -54,6 +56,10 @@ EOF
     m)
       MOVE_TESTS=1
       ;;
+    n)
+      MOVE_TESTS=1
+      MOVE_TESTS_EXTENDED=1
+      ;;
     e)
       MOVE_E2E_TESTS=1
       ;;
@@ -64,6 +70,7 @@ EOF
       GIT_CHECKS=1
       ALSO_TEST=1
       MOVE_TESTS=1
+      MOVE_TESTS_EXTENDED=1
       MOVE_E2E_TESTS=1
       ;;
   esac
@@ -161,6 +168,10 @@ if [ ! -z "$MOVE_TESTS" ]; then
     (
       cd $dir
       cargo test $BUILD_MODE
+      if [ ! -z "$MOVE_TESTS_EXTENDED" ]; then
+        echo "*************** [check-pr] Move tests $dir"
+        cargo test $BUILD_MODE -- --ignored
+      fi
     )
   done
 fi
