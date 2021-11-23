@@ -28,9 +28,9 @@ pub struct ProverTest {
 
 impl ProverTest {
     /// Creates a new prover test for the Move package at path relative to crate root.
-    pub fn create(path: impl Into<String>) -> Self {
+    pub fn create<S: AsRef<str>>(path: S) -> Self {
         ProverTest {
-            path: path.into(),
+            path: path.as_ref().to_string(),
             options: vec![],
             local_only: false,
         }
@@ -73,6 +73,18 @@ impl ProverTest {
             vec![], // prover does not need natives
         )
         .unwrap()
+    }
+
+    /// Creates a series of prover tests for the Move package at path relative to crate root.
+    /// Each test covers a different configuration of the Move prover.
+    pub fn run_extended_tests_for<S: AsRef<str>>(path: S) {
+        let tests = vec![
+            Self::create(path.as_ref()).with_options(&["--modular"]),
+            Self::create(path.as_ref()).with_options(&["--check-inconsistency"]),
+        ];
+        for test in tests {
+            test.run();
+        }
     }
 }
 

@@ -129,6 +129,10 @@ pub fn run_model_builder_with_options_and_compilation_flags(
     for (fhash, (fname, fsrc)) in &files {
         env.add_source(*fhash, fname.as_str(), fsrc, dep_files.contains(fhash));
     }
+    // Add named addresses
+    for (address_name, address_value) in &named_address_mapping {
+        env.add_named_address(address_name.clone(), *address_value);
+    }
 
     // Add any documentation comments found by the Move compiler to the env.
     for (fhash, documentation) in comment_map {

@@ -71,6 +71,8 @@ pub struct Options {
     pub experimental_pipeline: bool,
     /// Options for printing out modules and functions reachable by script functions
     pub script_reach: bool,
+    /// Run modular verification in addition to the normal verification flow
+    pub modular_verification: bool,
 
     /// BEGIN OF STRUCTURED OPTIONS. DO NOT ADD VALUE FIELDS AFTER THIS
     /// Options for the model builder.
@@ -110,6 +112,7 @@ impl Default for Options {
             errmapgen: ErrmapOptions::default(),
             experimental_pipeline: false,
             script_reach: false,
+            modular_verification: false,
         }
     }
 }
@@ -329,6 +332,11 @@ impl Options {
                     .value_name("SCOPE")
                     .help("default scope of verification \
                     (can be overridden by `pragma verify=true|false`)"),
+            )
+            .arg(
+                Arg::with_name("modular")
+                    .long("modular")
+                    .help("run modular verification after whole-package verification")
             )
             .arg(
                 Arg::with_name("bench-repeat")
@@ -645,6 +653,9 @@ impl Options {
                 "none" => VerificationScope::None,
                 _ => unreachable!("should not happen"),
             }
+        }
+        if matches.is_present("modular") {
+            options.modular_verification = true;
         }
         if matches.is_present("bench-repeat") {
             options.backend.bench_repeat =

@@ -21,8 +21,7 @@ use codespan_reporting::{
 };
 use docgen::Docgen;
 use errmapgen::ErrmapGen;
-#[allow(unused_imports)]
-use log::{debug, info, warn};
+use log::{debug, info};
 use move_model::{
     code_writer::CodeWriter,
     model::{FunctionVisibility, GlobalEnv},
@@ -61,6 +60,50 @@ pub fn run_move_prover<W: WriteColor>(
 }
 
 pub fn run_move_prover_with_model<W: WriteColor>(
+    env: &GlobalEnv,
+    error_writer: &mut W,
+    options: Options,
+    timer: Option<Instant>,
+) -> anyhow::Result<()> {
+    run_move_prover_with_model_internal(env, error_writer, options.clone(), timer)?;
+
+    // additionally run modular verification if requested
+    if options.modular_verification {
+        // reconstruct the dependencies and named addresses
+        let move_deps: Vec<_> = env
+            .get_modules()
+            .map(|menv| menv.get_source_path().to_str().unwrap().to_string())
+            .collect();
+        let named_addresses: Vec<_> = env
+            .get_named_address_map()
+            .iter()
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect();
+
+        // verify module by module
+        for module in env.get_modules() {
+            if !module.is_target() {
+                continue;
+            }
+            info!(
+                "Running modular verification for module {}",
+                module.get_full_name_str()
+            );
+            let new_options = Options {
+                move_sources: vec![module.get_source_path().to_str().unwrap().to_string()],
+                move_deps: move_deps.clone(),
+                move_named_address_values: named_addresses.clone(),
+                // need to turn-off the flag, otherwise it is endless recursion
+                modular_verification: false,
+                ..options.clone()
+            };
+            run_move_prover(error_writer, new_options)?;
+        }
+    }
+    Ok(())
+}
+
+fn run_move_prover_with_model_internal<W: WriteColor>(
     env: &GlobalEnv,
     error_writer: &mut W,
     options: Options,

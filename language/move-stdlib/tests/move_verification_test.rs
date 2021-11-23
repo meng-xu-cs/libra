@@ -9,6 +9,18 @@ fn prove_stdlib() {
 }
 
 #[test]
+#[ignore]
+fn prove_stdlib_extended() {
+    ProverTest::run_extended_tests_for(".");
+}
+
+#[test]
 fn prove_nursery() {
     ProverTest::create("nursery").run()
+}
+
+#[test]
+#[ignore]
+fn prove_nursery_extended() {
+    ProverTest::run_extended_tests_for("nursery");
 }

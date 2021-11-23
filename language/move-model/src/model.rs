@@ -55,6 +55,7 @@ use move_binary_format::{
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, language_storage, value::MoveValue,
 };
+use move_lang::shared::NumericalAddress;
 
 use crate::{
     ast::{
@@ -462,6 +463,8 @@ pub struct GlobalEnv {
     file_idx_to_id: BTreeMap<u16, FileId>,
     /// A set indicating whether a file id is a target or a dependency.
     file_id_is_dep: BTreeSet<FileId>,
+    /// A map of named addresses used in building the global environment
+    named_addresses: BTreeMap<String, NumericalAddress>,
     /// A special constant location representing an unknown location.
     /// This uses a pseudo entry in `source_files` to be safely represented.
     unknown_loc: Loc,
@@ -534,6 +537,7 @@ impl GlobalEnv {
             file_id_to_idx,
             file_idx_to_id,
             file_id_is_dep: BTreeSet::new(),
+            named_addresses: BTreeMap::new(),
             diags: RefCell::new(vec![]),
             symbol_pool: SymbolPool::new(),
             next_free_node_id: Default::default(),
@@ -641,6 +645,16 @@ impl GlobalEnv {
             self.file_id_is_dep.insert(file_id);
         }
         file_id
+    }
+
+    /// Add a pair of named address to this environment
+    pub fn add_named_address(&mut self, name: String, address: NumericalAddress) {
+        self.named_addresses.insert(name, address);
+    }
+
+    /// Return the mapping of named addresses
+    pub fn get_named_address_map(&self) -> &BTreeMap<String, NumericalAddress> {
+        &self.named_addresses
     }
 
     /// Find all target modules and return in a vector
