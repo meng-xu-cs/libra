@@ -14,7 +14,7 @@ hex = "0.4.3"
 regex = "1.4.3"
 structopt = "0.3.21"
 difference = "2.0.0"
-petgraph = "0.5.1"
+petgraph = "0.6.0"
 walkdir = "2.3.1"
 tempfile = "3.2.0"
 
