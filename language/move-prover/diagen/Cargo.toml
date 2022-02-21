@@ -14,5 +14,5 @@ publish = false
 diem-workspace-hack = { path = "../../../common/workspace-hack" }
 
 # external dependencies
-anyhow = "1.0.38"
+anyhow = "1.0.54"
 regex = "1.4.3"
