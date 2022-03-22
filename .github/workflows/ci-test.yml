@@ -168,7 +168,7 @@ jobs:
         with:
           webhook-gha-hardware: ${{ secrets.WEBHOOK_GHA_HARDWARE }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -201,7 +201,7 @@ jobs:
         with:
           webhook-gha-hardware: ${{ secrets.WEBHOOK_GHA_HARDWARE }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -234,7 +234,7 @@ jobs:
         with:
           webhook-gha-hardware: ${{ secrets.WEBHOOK_GHA_HARDWARE }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -372,7 +372,7 @@ jobs:
           min-ram: 7
           webhook-gha-hardware: ${{ secrets.WEBHOOK_GHA_HARDWARE }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -468,7 +468,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -491,7 +491,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: ./.github/actions/build-setup
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
@@ -517,7 +517,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: ${{ github.event.pull_request.head.sha }}
-      - uses: actions/cache@v2.1.4
+      - uses: actions/cache@v3
         with:
           path: "/opt/cargo/git\n/opt/cargo/registry\n/opt/cargo/.package-cache"
           key: crates-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
