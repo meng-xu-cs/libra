@@ -617,7 +617,7 @@ dependencies = [
  "invalid-mutations",
  "mirai-annotations",
  "move-core-types",
- "petgraph",
+ "petgraph 0.6.1",
  "vm",
 ]
 
@@ -631,7 +631,7 @@ dependencies = [
  "diem-workspace-hack",
  "invalid-mutations",
  "move-core-types",
- "petgraph",
+ "petgraph 0.6.1",
  "proptest",
  "vm",
 ]
@@ -1373,7 +1373,7 @@ dependencies = [
  "guppy",
  "itertools 0.10.0",
  "once_cell",
- "petgraph",
+ "petgraph 0.5.1",
  "rayon",
  "serde",
  "toml",
@@ -2405,7 +2405,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "once_cell",
- "petgraph",
+ "petgraph 0.6.1",
  "proc-macro2 0.4.30",
  "prost",
  "quote 0.6.13",
@@ -2936,6 +2936,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
+name = "fixedbitset"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "279fb028e20b3c4c320317955b77c5e0c9701f05a1d309905d6fc702cdc5053e"
+
+[[package]]
 name = "flate2"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3299,14 +3305,14 @@ checksum = "ec4cbddce827d660864974dc3dc62a1c810e813d17e518cc5830716b977cd110"
 dependencies = [
  "camino",
  "cargo_metadata",
- "fixedbitset",
+ "fixedbitset 0.2.0",
  "guppy-summaries",
  "indexmap",
  "itertools 0.10.0",
  "nested",
  "once_cell",
  "pathdiff",
- "petgraph",
+ "petgraph 0.5.1",
  "rayon",
  "semver 0.11.0",
  "serde",
@@ -3388,9 +3394,9 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
+checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 
 [[package]]
 name = "headers"
@@ -3606,9 +3612,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "1.6.2"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
+checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg 1.0.1",
  "hashbrown",
@@ -4231,7 +4237,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "once_cell",
- "petgraph",
+ "petgraph 0.6.1",
  "serde",
  "structopt 0.3.21",
  "vm",
@@ -4284,7 +4290,7 @@ dependencies = [
  "move-core-types",
  "move-ir-types",
  "move-lang-test-utils",
- "petgraph",
+ "petgraph 0.6.1",
  "regex",
  "structopt 0.3.21",
  "tempfile",
@@ -5064,7 +5070,17 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
 dependencies = [
- "fixedbitset",
+ "fixedbitset 0.2.0",
+ "indexmap",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51b305cc4569dd4e8765bab46261f67ef5d4d11a4b6e745100ee5dad8948b46c"
+dependencies = [
+ "fixedbitset 0.4.1",
  "indexmap",
 ]
 
@@ -5306,7 +5322,7 @@ dependencies = [
  "itertools 0.9.0",
  "log",
  "multimap",
- "petgraph",
+ "petgraph 0.5.1",
  "prost",
  "prost-types",
  "tempfile",
