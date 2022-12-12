@@ -10,6 +10,6 @@ publish = false
 edition = "2018"
 
 [dependencies]
-ipnet = "2.3"
+ipnet = "2.7"
 
 diem-workspace-hack = { path = "../workspace-hack" }
